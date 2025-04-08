@@ -99,6 +99,21 @@ function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
+            <footer className="py-4 border-t border-border">
+              <div className="container flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Desenvolvido por{' '}
+                  <a
+                    href="https://emasoftware.io"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-museomoderno font-medium bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent hover:to-primary transition-all duration-300"
+                  >
+                    ema-software
+                  </a>
+                </p>
+              </div>
+            </footer>
           </div>
         </BrowserRouter>
       </ThemeProvider>
