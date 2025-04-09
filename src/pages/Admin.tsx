@@ -12,10 +12,39 @@ import {
   Trash2,
   ChevronRight,
   Ban,
-  CheckCircle
+  CheckCircle,
+  Menu,
+  X
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn, formatPhoneNumber } from '../lib/utils';
+
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface JobFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+  job?: {
+    id: string;
+    title: string;
+    department_id: string;
+    description: string;
+    email: string;
+    whatsapp: string | null;
+  } | null;
+}
+
+interface SearchableSelectProps {
+  options: Department[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}
 
 type Section = 'users' | 'payments' | 'categories' | 'subcategories' | 'analytics';
 
@@ -250,6 +279,7 @@ export function Admin() {
     id: string;
     name: string;
   } | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     checkAdminAccess();
@@ -492,16 +522,23 @@ export function Admin() {
     : subCategories;
 
   return (
-    <div className="flex gap-6">
-      <div className="w-64 shrink-0">
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
+    <div className="flex">
+      {/* Sidebar - Hidden on mobile by default */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-40 w-64 bg-background border-r border-border transform transition-transform duration-200 ease-in-out hidden lg:block",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        <div className="h-full flex flex-col">
           <div className="p-6 border-b border-border">
             <h2 className="font-semibold">Painel Administrativo</h2>
           </div>
 
-          <div className="p-2">
+          <div className="p-2 flex-1 overflow-y-auto">
             <button
-              onClick={() => setActiveSection('users')}
+              onClick={() => {
+                setActiveSection('users');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'users'
@@ -514,7 +551,10 @@ export function Admin() {
             </button>
 
             <button
-              onClick={() => setActiveSection('payments')}
+              onClick={() => {
+                setActiveSection('payments');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'payments'
@@ -527,7 +567,10 @@ export function Admin() {
             </button>
 
             <button
-              onClick={() => setActiveSection('categories')}
+              onClick={() => {
+                setActiveSection('categories');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'categories'
@@ -540,7 +583,10 @@ export function Admin() {
             </button>
 
             <button
-              onClick={() => setActiveSection('subcategories')}
+              onClick={() => {
+                setActiveSection('subcategories');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors ml-4",
                 activeSection === 'subcategories'
@@ -553,7 +599,10 @@ export function Admin() {
             </button>
 
             <button
-              onClick={() => setActiveSection('analytics')}
+              onClick={() => {
+                setActiveSection('analytics');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'analytics'
@@ -568,257 +617,298 @@ export function Admin() {
         </div>
       </div>
 
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">
-            {activeSection === 'users' && 'Usuários'}
-            {activeSection === 'payments' && 'Pagamentos'}
-            {activeSection === 'categories' && 'Categorias'}
-            {activeSection === 'subcategories' && 'Subcategorias'}
-            {activeSection === 'analytics' && 'Analytics'}
-          </h1>
+      {/* Mobile Menu Button - Only visible on mobile */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="lg:hidden fixed bottom-4 right-4 z-50 p-3 bg-primary text-primary-foreground rounded-full shadow-lg"
+      >
+        {isSidebarOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <Menu className="h-6 w-6" />
+        )}
+      </button>
 
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Pesquisar..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+      {/* Mobile Sidebar - Only visible when toggled on mobile */}
+      {isSidebarOpen && (
+        <div className="lg:hidden fixed inset-0 bg-background z-40">
+          <div className="h-full flex flex-col">
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <h2 className="font-semibold">Painel Administrativo</h2>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 hover:bg-secondary rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            {(activeSection === 'categories' || activeSection === 'subcategories') && (
+            <div className="p-2 flex-1 overflow-y-auto">
               <button
-                onClick={() => setCategoryForm({ isOpen: true })}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+                onClick={() => {
+                  setActiveSection('users');
+                  setIsSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                  activeSection === 'users'
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                )}
               >
-                <Plus className="h-4 w-4" />
-                Nova {activeSection === 'categories' ? 'Categoria' : 'Subcategoria'}
+                <Users className="h-4 w-4" />
+                Usuários
               </button>
-            )}
+
+              <button
+                onClick={() => {
+                  setActiveSection('payments');
+                  setIsSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                  activeSection === 'payments'
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                )}
+              >
+                <CreditCard className="h-4 w-4" />
+                Pagamentos
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSection('categories');
+                  setIsSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                  activeSection === 'categories'
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                )}
+              >
+                <FolderTree className="h-4 w-4" />
+                Categorias
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSection('subcategories');
+                  setIsSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors ml-4",
+                  activeSection === 'subcategories'
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                )}
+              >
+                <FolderTree className="h-4 w-4" />
+                Subcategorias
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSection('analytics');
+                  setIsSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                  activeSection === 'analytics'
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                )}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {loading ? (
-          <div className="bg-card rounded-lg border border-border p-8 text-center">
-            <p className="text-muted-foreground">Carregando...</p>
+      {/* Main Content */}
+      <div className="flex-1 p-4 lg:p-6 w-full lg:ml-64">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h1 className="text-2xl sm:text-3xl font-bold">
+              {activeSection === 'users' && 'Usuários'}
+              {activeSection === 'payments' && 'Pagamentos'}
+              {activeSection === 'categories' && 'Categorias'}
+              {activeSection === 'subcategories' && 'Subcategorias'}
+              {activeSection === 'analytics' && 'Analytics'}
+            </h1>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full sm:w-auto pl-9 pr-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {(activeSection === 'categories' || activeSection === 'subcategories') && (
+                <button
+                  onClick={() => setCategoryForm({ isOpen: true })}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nova {activeSection === 'categories' ? 'Categoria' : 'Subcategoria'}
+                </button>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-            {activeSection === 'users' && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-4">Nome</th>
-                      <th className="text-left p-4">E-mail</th>
-                      <th className="text-left p-4">Telefone</th>
-                      <th className="text-center p-4">Status</th>
-                      <th className="text-right p-4">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((user) => (
-                      <tr key={user.id} className="border-b border-border">
-                        <td className="p-4">
-                          <div>
-                            <p className="font-medium">{user.full_name}</p>
-                            {user.company_name && (
-                              <p className="text-sm text-muted-foreground">
-                                {user.company_name}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4">{user.email}</td>
-                        <td className="p-4">
-                          {user.phone && formatPhoneNumber(user.phone)}
-                        </td>
-                        <td className="text-center p-4">
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-full text-xs",
-                            user.status === 'S'
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                          )}>
-                            {user.status === 'S' ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </td>
-                        <td className="text-right p-4">
-                          <button
-                            onClick={() => handleToggleUserStatus(
-                              user.id,
-                              user.status
-                            )}
-                            className={cn(
-                              "p-2 rounded-lg transition-colors",
-                              user.status === 'S'
-                                ? "text-destructive hover:bg-destructive/10"
-                                : "text-green-600 hover:bg-green-100 dark:hover:bg-green-900"
-                            )}
-                            title={user.status === 'S' ? 'Inativar' : 'Ativar'}
-                          >
-                            {user.status === 'S' ? (
-                              <Ban className="h-4 w-4" />
-                            ) : (
-                              <CheckCircle className="h-4 w-4" />
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
-            {activeSection === 'payments' && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-4">Usuário</th>
-                      <th className="text-left p-4">Data</th>
-                      <th className="text-right p-4">Valor</th>
-                      <th className="text-center p-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payments.map((payment) => (
-                      <tr key={payment.id} className="border-b border-border">
-                        <td className="p-4">
-                          {payment.user?.profile?.full_name}
-                        </td>
-                        <td className="p-4">
-                          {new Date(payment.created_at).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="text-right p-4">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                          }).format(payment.amount)}
-                        </td>
-                        <td className="text-center p-4">
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-full text-xs",
-                            payment.status === 'succeeded'
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : payment.status === 'pending'
-                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                          )}>
-                            {payment.status === 'succeeded' && 'Pago'}
-                            {payment.status === 'pending' && 'Pendente'}
-                            {payment.status === 'failed' && 'Falhou'}
-                          </span>
-                        </td>
+          {loading ? (
+            <div className="bg-card rounded-lg border border-border p-8 text-center">
+              <p className="text-muted-foreground">Carregando...</p>
+            </div>
+          ) : (
+            <>
+              {activeSection === 'users' && (
+                <div className="bg-card rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-4">Nome</th>
+                        <th className="text-left p-4">E-mail</th>
+                        <th className="text-left p-4">Telefone</th>
+                        <th className="text-center p-4">Status</th>
+                        <th className="text-right p-4">Ações</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeSection === 'categories' && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-4">Nome</th>
-                      <th className="text-left p-4">Slug</th>
-                      <th className="text-center p-4">Subcategorias</th>
-                      <th className="text-right p-4">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredMainCategories.map((category) => (
-                      <tr key={category.id} className="border-b border-border">
-                        <td className="p-4">{category.name}</td>
-                        <td className="p-4">{category.slug}</td>
-                        <td className="text-center p-4">
-                          {subCategories.filter(sub => sub.main_category_id === category.id).length}
-                        </td>
-                        <td className="text-right p-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => setCategoryForm({
-                                isOpen: true,
-                                data: {
-                                  id: category.id,
-                                  name: category.name,
-                                  slug: category.slug
-                                }
-                              })}
-                              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-                              title="Editar"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteModal({
-                                isOpen: true,
-                                type: 'category',
-                                id: category.id,
-                                name: category.name
-                              })}
-                              className="p-2 text-destructive hover:text-destructive/80 transition-colors"
-                              title="Excluir"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeSection === 'subcategories' && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-4">Nome</th>
-                      <th className="text-left p-4">Categoria Principal</th>
-                      <th className="text-left p-4">Slug</th>
-                      <th className="text-right p-4">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSubCategories.map((category) => {
-                      const mainCategory = mainCategories.find(
-                        main => main.id === category.main_category_id
-                      );
-                      
-                      return (
-                        <tr key={category.id} className="border-b border-border">
-                          <td className="p-4">{category.name}</td>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="border-b border-border">
                           <td className="p-4">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="text-muted-foreground">
-                                {mainCategory?.name}
-                              </span>
+                            <div>
+                              <p className="font-medium">{user.full_name}</p>
+                              {user.company_name && (
+                                <p className="text-sm text-muted-foreground">
+                                  {user.company_name}
+                                </p>
+                              )}
                             </div>
                           </td>
-                          <td className="p-4">{category.slug}</td>
+                          <td className="p-4">{user.email}</td>
+                          <td className="p-4">
+                            {user.phone && formatPhoneNumber(user.phone)}
+                          </td>
+                          <td className="text-center p-4">
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs",
+                              user.status === 'S'
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            )}>
+                              {user.status === 'S' ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
+                          <td className="text-right p-4">
+                            <button
+                              onClick={() => handleToggleUserStatus(
+                                user.id,
+                                user.status
+                              )}
+                              className={cn(
+                                "p-2 rounded-lg transition-colors",
+                                user.status === 'S'
+                                  ? "text-destructive hover:bg-destructive/10"
+                                  : "text-green-600 hover:bg-green-100 dark:hover:bg-green-900"
+                              )}
+                              title={user.status === 'S' ? 'Inativar' : 'Ativar'}
+                            >
+                              {user.status === 'S' ? (
+                                <Ban className="h-4 w-4" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {activeSection === 'payments' && (
+                <div className="bg-card rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-4">Usuário</th>
+                        <th className="text-left p-4">Data</th>
+                        <th className="text-right p-4">Valor</th>
+                        <th className="text-center p-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((payment) => (
+                        <tr key={payment.id} className="border-b border-border">
+                          <td className="p-4">
+                            {payment.user?.profile?.full_name}
+                          </td>
+                          <td className="p-4">
+                            {new Date(payment.created_at).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="text-right p-4">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(payment.amount)}
+                          </td>
+                          <td className="text-center p-4">
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs",
+                              payment.status === 'succeeded'
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : payment.status === 'pending'
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            )}>
+                              {payment.status === 'succeeded' ? 'Aprovado' : payment.status === 'pending' ? 'Pendente' : 'Falhou'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {activeSection === 'categories' && (
+                <div className="bg-card rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-4">Nome</th>
+                        <th className="text-left p-4">Slug</th>
+                        <th className="text-right p-4">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMainCategories.map((category) => (
+                        <tr key={category.id} className="border-b border-border">
+                          <td className="p-4">
+                            {category.name}
+                          </td>
+                          <td className="p-4">
+                            {category.slug}
+                          </td>
                           <td className="text-right p-4">
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => setCategoryForm({
                                   isOpen: true,
-                                  data: {
-                                    id: category.id,
-                                    name: category.name,
-                                    slug: category.slug,
-                                    main_category_id: category.main_category_id
-                                  }
+                                  data: category
                                 })}
-                                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                                className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
                                 title="Editar"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -826,11 +916,11 @@ export function Admin() {
                               <button
                                 onClick={() => setDeleteModal({
                                   isOpen: true,
-                                  type: 'subcategory',
+                                  type: 'category',
                                   id: category.id,
                                   name: category.name
                                 })}
-                                className="p-2 text-destructive hover:text-destructive/80 transition-colors"
+                                className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
                                 title="Excluir"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -838,58 +928,85 @@ export function Admin() {
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeSection === 'analytics' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="bg-card rounded-lg border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Total de Usuários</h3>
-                    <p className="text-3xl font-bold">{users.length}</p>
-                  </div>
-
-                  <div className="bg-card rounded-lg border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Usuários Ativos</h3>
-                    <p className="text-3xl font-bold">
-                      {users.filter(user => user.status === 'S').length}
-                    </p>
-                  </div>
-
-                  <div className="bg-card rounded-lg border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Total de Serviços</h3>
-                    <p className="text-3xl font-bold">0</p>
-                  </div>
-
-                  <div className="bg-card rounded-lg border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Visualizações</h3>
-                    <p className="text-3xl font-bold">0</p>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+              )}
 
-                <div className="bg-card rounded-lg border border-border p-6">
-                  <h3 className="text-lg font-semibold mb-4">Visualizações por Categoria</h3>
-                  <p className="text-muted-foreground">
-                    Em breve: Gráfico mostrando as visualizações por categoria
-                  </p>
-                </div>
+              {activeSection === 'subcategories' && (
+                <div className="bg-card rounded-lg border border-border overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-4">Nome</th>
+                        <th className="text-left p-4">Categoria Principal</th>
+                        <th className="text-left p-4">Slug</th>
+                        <th className="text-right p-4">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSubCategories.map((category) => {
+                        const mainCategory = mainCategories.find(
+                          main => main.id === category.main_category_id
+                        );
 
-                <div className="bg-card rounded-lg border border-border p-6">
-                  <h3 className="text-lg font-semibold mb-4">Novos Usuários</h3>
-                  <p className="text-muted-foreground">
-                    Em breve: Gráfico mostrando o crescimento de usuários
-                  </p>
+                        return (
+                          <tr key={category.id} className="border-b border-border">
+                            <td className="p-4">
+                              {category.name}
+                            </td>
+                            <td className="p-4">
+                              {mainCategory?.name}
+                            </td>
+                            <td className="p-4">
+                              {category.slug}
+                            </td>
+                            <td className="text-right p-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setCategoryForm({
+                                    isOpen: true,
+                                    data: category
+                                  })}
+                                  className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
+                                  title="Editar"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteModal({
+                                    isOpen: true,
+                                    type: 'subcategory',
+                                    id: category.id,
+                                    name: category.name
+                                  })}
+                                  className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+
+              {activeSection === 'analytics' && (
+                <div className="bg-card rounded-lg border border-border p-8 text-center">
+                  <p className="text-muted-foreground">Em breve</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Category Form Modal */}
       <CategoryForm
         isOpen={categoryForm.isOpen}
         onClose={() => setCategoryForm({ isOpen: false })}
@@ -905,13 +1022,14 @@ export function Admin() {
         isSubcategory={activeSection === 'subcategories'}
       />
 
+      {/* Delete Confirmation Modal */}
       {deleteModal && (
         <DeleteModal
           isOpen={deleteModal.isOpen}
           onClose={() => setDeleteModal(null)}
           onConfirm={handleDelete}
-          title="Confirmar Exclusão"
-          message={`Tem certeza que deseja excluir a ${deleteModal.type === 'category' ? 'categoria' : 'subcategoria'} "${deleteModal.name}"? Esta ação não pode ser desfeita.`}
+          title={`Excluir ${deleteModal.type === 'category' ? 'Categoria' : 'Subcategoria'}`}
+          message={`Tem certeza que deseja excluir a ${deleteModal.type === 'category' ? 'categoria' : 'subcategoria'} "${deleteModal.name}"?`}
         />
       )}
     </div>

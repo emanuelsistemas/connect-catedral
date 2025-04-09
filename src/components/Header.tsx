@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Network, Menu, X, Shield } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,9 @@ export function Header() {
   const { user, signOut } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const location = useLocation();
+
+  const isAuthPage = location.pathname === '/auth';
 
   useEffect(() => {
     async function checkAdminStatus() {
@@ -67,7 +70,7 @@ export function Header() {
                 Área do Prestador
               </Link>
             </>
-          ) : (
+          ) : !isAuthPage && (
             <Link
               to="/auth"
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
@@ -124,7 +127,7 @@ export function Header() {
                   Sair
                 </button>
               </>
-            ) : (
+            ) : !isAuthPage && (
               <Link
                 to="/auth"
                 className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity text-center"

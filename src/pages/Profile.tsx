@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { User } from '@supabase/supabase-js';
-import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase } from 'lucide-react';
+import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase, Menu, X } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { supabase } from '../lib/supabase';
 import { ServiceForm } from '../components/ServiceForm';
 import { JobForm } from '../components/JobForm';
+import { DeleteModal } from '../components/DeleteModal';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
@@ -41,49 +42,7 @@ type Profile = {
   bio: string | null;
 };
 
-type Payment = {
-  id: string;
-  amount: number;
-  status: 'succeeded' | 'pending' | 'failed';
-  created_at: string;
-};
-
 type Section = 'services' | 'jobs' | 'profile' | 'password' | 'payments';
-
-type DeleteModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-};
-
-function DeleteModal({ isOpen, onClose, onConfirm, title, message }: DeleteModalProps) {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-card rounded-lg p-6 w-full max-w-sm">
-        <h2 className="text-xl font-bold mb-4">{title}</h2>
-        <p className="text-muted-foreground mb-6">{message}</p>
-        <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2 px-4 border border-input rounded-lg hover:bg-accent transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 px-4 bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 transition-opacity"
-          >
-            Excluir
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function Profile() {
   const { user, signOut } = useAuth();
@@ -104,6 +63,7 @@ export function Profile() {
     id: string;
     title: string;
   } | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Profile form state
   const [fullName, setFullName] = useState('');
@@ -265,16 +225,6 @@ export function Profile() {
     }
   }
 
-  function handleEditService(service: Service) {
-    setSelectedService(service);
-    setIsServiceFormOpen(true);
-  }
-
-  function handleEditJob(job: Job) {
-    setSelectedJob(job);
-    setIsJobFormOpen(true);
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -284,17 +234,29 @@ export function Profile() {
   }
 
   return (
-    <div className="flex gap-6">
-      <div className="w-64 shrink-0">
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
-          <div className="p-6 border-b border-border">
-            <h2 className="font-semibold">{profile?.full_name}</h2>
-            <p className="text-sm text-muted-foreground mt-1">{profile?.email}</p>
+    <div className="min-h-screen flex">
+      {/* Sidebar - Desktop */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-40 w-64 bg-background border-r border-border transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="h-full flex flex-col">
+          <div className="p-6 border-b border-border flex items-center justify-between">
+            <h2 className="font-semibold">Área do Prestador</h2>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="lg:hidden p-2 hover:bg-secondary rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          <div className="p-2">
+          <div className="p-2 flex-1 overflow-y-auto">
             <button
-              onClick={() => setActiveSection('services')}
+              onClick={() => {
+                setActiveSection('services');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'services'
@@ -307,7 +269,10 @@ export function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveSection('jobs')}
+              onClick={() => {
+                setActiveSection('jobs');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'jobs'
@@ -320,7 +285,10 @@ export function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveSection('profile')}
+              onClick={() => {
+                setActiveSection('profile');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'profile'
@@ -333,7 +301,10 @@ export function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveSection('password')}
+              onClick={() => {
+                setActiveSection('password');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'password'
@@ -346,7 +317,10 @@ export function Profile() {
             </button>
 
             <button
-              onClick={() => setActiveSection('payments')}
+              onClick={() => {
+                setActiveSection('payments');
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
                 activeSection === 'payments'
@@ -369,7 +343,20 @@ export function Profile() {
         </div>
       </div>
 
-      <div className="flex-1">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="lg:hidden fixed bottom-4 right-4 z-50 p-3 bg-primary text-primary-foreground rounded-full shadow-lg"
+      >
+        {isSidebarOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <Menu className="h-6 w-6" />
+        )}
+      </button>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4 lg:p-6">
         {activeSection === 'services' && (
           <div>
             <div className="flex items-center justify-between mb-8">
@@ -386,49 +373,49 @@ export function Profile() {
               </button>
             </div>
             
-            <div className="bg-card rounded-lg border border-border overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4">Título</th>
-                    <th className="text-center p-4">Visualizações</th>
-                    <th className="text-center p-4">Cliques WhatsApp</th>
-                    <th className="text-right p-4">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.map((service) => (
-                    <tr key={service.id} className="border-b border-border">
-                      <td className="p-4">{service.title}</td>
-                      <td className="text-center p-4">{service.views_count || 0}</td>
-                      <td className="text-center p-4">{service.whatsapp_clicks || 0}</td>
-                      <td className="text-right p-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEditService(service)}
-                            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteModal({
-                              isOpen: true,
-                              type: 'service',
-                              id: service.id,
-                              title: service.title
-                            })}
-                            className="p-2 text-destructive hover:text-destructive/80 transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid gap-4">
+              {services.map((service) => (
+                <div key={service.id} className="bg-card rounded-lg border border-border p-4">
+                  <h2 className="text-lg font-semibold mb-2">{service.title}</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>Visualizações:</span>
+                      <span className="font-medium">{service.views_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>Cliques WhatsApp:</span>
+                      <span className="font-medium">{service.whatsapp_clicks || 0}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                    <button
+                      onClick={() => handleEditService(service)}
+                      className="flex-1 py-2 px-4 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => setDeleteModal({
+                        isOpen: true,
+                        type: 'service',
+                        id: service.id,
+                        title: service.title
+                      })}
+                      className="flex-1 py-2 px-4 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {services.length === 0 && (
+                <div className="text-center py-8 bg-card rounded-lg border border-border">
+                  <p className="text-muted-foreground">
+                    Você ainda não tem serviços cadastrados
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -449,49 +436,49 @@ export function Profile() {
               </button>
             </div>
             
-            <div className="bg-card rounded-lg border border-border overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4">Título</th>
-                    <th className="text-center p-4">Visualizações</th>
-                    <th className="text-center p-4">Cliques WhatsApp</th>
-                    <th className="text-right p-4">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job.id} className="border-b border-border">
-                      <td className="p-4">{job.title}</td>
-                      <td className="text-center p-4">{job.views_count || 0}</td>
-                      <td className="text-center p-4">{job.whatsapp_clicks || 0}</td>
-                      <td className="text-right p-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEditJob(job)}
-                            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteModal({
-                              isOpen: true,
-                              type: 'job',
-                              id: job.id,
-                              title: job.title
-                            })}
-                            className="p-2 text-destructive hover:text-destructive/80 transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid gap-4">
+              {jobs.map((job) => (
+                <div key={job.id} className="bg-card rounded-lg border border-border p-4">
+                  <h2 className="text-lg font-semibold mb-2">{job.title}</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>Visualizações:</span>
+                      <span className="font-medium">{job.views_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>Cliques WhatsApp:</span>
+                      <span className="font-medium">{job.whatsapp_clicks || 0}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                    <button
+                      onClick={() => handleEditJob(job)}
+                      className="flex-1 py-2 px-4 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => setDeleteModal({
+                        isOpen: true,
+                        type: 'job',
+                        id: job.id,
+                        title: job.title
+                      })}
+                      className="flex-1 py-2 px-4 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {jobs.length === 0 && (
+                <div className="text-center py-8 bg-card rounded-lg border border-border">
+                  <p className="text-muted-foreground">
+                    Você ainda não tem vagas cadastradas
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
