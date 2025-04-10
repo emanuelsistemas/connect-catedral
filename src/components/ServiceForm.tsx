@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Star, Trash2, ChevronRight, Search, ChevronDown } from 'lucide-react';
+import { X, Upload, Star, Trash2, ChevronRight, Search, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { toast } from 'react-toastify';
 import { supabase } from '../lib/supabase';
@@ -138,6 +138,8 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [existingImages, setExistingImages] = useState<{ id: string; url: string; is_featured: boolean }[]>([]);
+  const [portfolioSites, setPortfolioSites] = useState<string[]>(['']);
+  const [existingPortfolioSites, setExistingPortfolioSites] = useState<{ id: string; url: string }[]>([]);
 
   useEffect(() => {
     loadMainCategories();
@@ -174,7 +176,8 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
             *,
             main_category:main_categories!inner(*)
           ),
-          service_images(*)
+          service_images(*),
+          portfolio_sites(*)
         `)
         .eq('id', service.id)
         .single();
@@ -194,6 +197,11 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
 
         if (serviceData.service_images) {
           setExistingImages(serviceData.service_images);
+        }
+
+        if (serviceData.portfolio_sites) {
+          setExistingPortfolioSites(serviceData.portfolio_sites);
+          setPortfolioSites(serviceData.portfolio_sites.map((site: { url: string }) => site.url));
         }
       }
     } catch (error) {
@@ -250,6 +258,24 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
     setPrice(value ? formattedValue : '');
   }
 
+  function handleAddPortfolioSite() {
+    if (portfolioSites.length < 5) {
+      setPortfolioSites([...portfolioSites, '']);
+    }
+  }
+
+  function handleRemovePortfolioSite(index: number) {
+    const newSites = [...portfolioSites];
+    newSites.splice(index, 1);
+    setPortfolioSites(newSites);
+  }
+
+  function handlePortfolioSiteChange(index: number, value: string) {
+    const newSites = [...portfolioSites];
+    newSites[index] = value;
+    setPortfolioSites(newSites);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
@@ -266,6 +292,17 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
     if (!selectedMainCategory || !selectedSubCategory) {
       toast.error('Selecione uma categoria e subcategoria');
       return;
+    }
+
+    // Validar URLs do portfólio
+    const validSites = portfolioSites.filter(site => site.trim() !== '');
+    for (const site of validSites) {
+      try {
+        new URL(site);
+      } catch {
+        toast.error('Uma ou mais URLs do portfólio são inválidas');
+        return;
+      }
     }
 
     setLoading(true);
@@ -328,6 +365,7 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
       }
 
       if (serviceId) {
+        // Upload de imagens
         const imagePromises = images.map(async (image, index) => {
           const fileExt = image.file.name.split('.').pop();
           const fileName = `${serviceId}/${Date.now()}.${fileExt}`;
@@ -362,6 +400,30 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
           );
 
           await Promise.all(promises);
+        }
+
+        // Atualizar sites do portfólio
+        if (service) {
+          // Remover sites existentes
+          await supabase
+            .from('portfolio_sites')
+            .delete()
+            .eq('service_id', serviceId);
+        }
+
+        // Inserir novos sites
+        const validSites = portfolioSites.filter(site => site.trim() !== '');
+        if (validSites.length > 0) {
+          const { error: portfolioError } = await supabase
+            .from('portfolio_sites')
+            .insert(
+              validSites.map(url => ({
+                service_id: serviceId,
+                url: url.trim()
+              }))
+            );
+
+          if (portfolioError) throw portfolioError;
         }
       }
 
@@ -658,6 +720,49 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
               </div>
             </div>
 
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Sites do Portfólio
+                </label>
+                {portfolioSites.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={handleAddPortfolioSite}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Adicionar site
+                  </button>
+                )}
+              </div>
+              {portfolioSites.map((site, index) => (
+                <div key={index} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="url"
+                      value={site}
+                      onChange={(e) => handlePortfolioSiteChange(index, e.target.value)}
+                      placeholder="https://exemplo.com"
+                      className="w-full pl-9 pr-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  {portfolioSites.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePortfolioSite(index)}
+                      className="p-3 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <p className="text-sm text-muted-foreground">
+                Adicione até 5 sites do seu portfólio
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Descrição do Serviço
@@ -677,7 +782,8 @@ export function ServiceForm({ isOpen, onClose, onSuccess, service }: ServiceForm
             type="submit"
             form="service-form"
             disabled={loading || !selectedMainCategory || !selectedSubCategory}
-            className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disable
+d:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Salvando...' : service ? 'Salvar Alterações' : 'Cadastrar Serviço'}
           </button>

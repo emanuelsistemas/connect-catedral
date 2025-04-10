@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter } from 'lucide-react';
+import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter, LinkIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatPhoneNumber, cn } from '../lib/utils';
+import { ServiceRating } from '../components/ServiceRating';
 
 type Service = {
   id: string;
@@ -12,7 +13,9 @@ type Service = {
   is_budget: boolean;
   whatsapp: string;
   email: string;
+  whatsapp_clicks: number;
   profile: {
+    id: string;
     full_name: string;
     company_name: string | null;
     phone: string;
@@ -26,6 +29,10 @@ type Service = {
   service_images: {
     url: string;
     is_featured: boolean;
+  }[];
+  portfolio_sites: {
+    id: string;
+    url: string;
   }[];
 };
 
@@ -63,12 +70,13 @@ export function ServiceDetails() {
           .from('services')
           .select(`
             *,
-            profile:profiles(full_name, company_name, phone),
+            profile:profiles(id, full_name, company_name, phone),
             category:sub_categories(
               name,
               main_category:main_categories(name)
             ),
-            service_images(url, is_featured)
+            service_images(url, is_featured),
+            portfolio_sites(id, url)
           `)
           .eq('id', id)
           .single(),
@@ -84,17 +92,34 @@ export function ServiceDetails() {
       if (serviceResponse.data) {
         setService(serviceResponse.data);
 
-        // Registrar visualização
-        await supabase.from('service_views').insert({
-          service_id: id,
-          viewed_at: new Date().toISOString()
-        });
+        // Obter IP do cliente
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const { ip } = await ipResponse.json();
 
-        // Incrementar contador de visualizações
-        await supabase
-          .from('services')
-          .update({ views_count: (serviceResponse.data.views_count || 0) + 1 })
-          .eq('id', id);
+        // Verificar se já existe uma visualização recente deste IP
+        const { data: recentView } = await supabase
+          .from('service_views')
+          .select('*')
+          .eq('service_id', id)
+          .eq('ip_address', ip)
+          .gte('viewed_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Últimas 24h
+          .maybeSingle();
+
+        if (!recentView) {
+          // Registrar nova visualização
+          await supabase.from('service_views').insert({
+            service_id: id,
+            ip_address: ip,
+            user_agent: navigator.userAgent,
+            viewed_at: new Date().toISOString()
+          });
+
+          // Incrementar contador de visualizações
+          await supabase
+            .from('services')
+            .update({ views_count: (serviceResponse.data.views_count || 0) + 1 })
+            .eq('id', id);
+        }
       }
 
       setMainCategories(categoriesResponse.data || []);
@@ -128,11 +153,40 @@ export function ServiceDetails() {
     if (!service) return;
 
     try {
-      // Incrementar contador de cliques no WhatsApp
-      await supabase
-        .from('services')
-        .update({ whatsapp_clicks: (service.whatsapp_clicks || 0) + 1 })
-        .eq('id', service.id);
+      // Obter IP do cliente
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const { ip } = await ipResponse.json();
+
+      // Verificar se já existe um clique recente deste IP
+      const { data: recentClick } = await supabase
+        .from('whatsapp_clicks')
+        .select('*')
+        .eq('service_id', service.id)
+        .eq('ip_address', ip)
+        .gte('clicked_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Últimas 24h
+        .maybeSingle();
+
+      if (!recentClick) {
+        // Registrar novo clique
+        await supabase.from('whatsapp_clicks').insert({
+          service_id: service.id,
+          ip_address: ip,
+          user_agent: navigator.userAgent,
+          clicked_at: new Date().toISOString()
+        });
+
+        // Incrementar contador de cliques
+        const { data: updatedService } = await supabase
+          .from('services')
+          .update({ whatsapp_clicks: (service.whatsapp_clicks || 0) + 1 })
+          .eq('id', service.id)
+          .select()
+          .single();
+
+        if (updatedService) {
+          setService(updatedService);
+        }
+      }
 
       // Abrir WhatsApp
       const message = `Olá! Vi seu serviço de ${service.title} no c:onnect e gostaria de mais informações.`;
@@ -207,7 +261,7 @@ export function ServiceDetails() {
         </div>
 
         {showFilters && (
-          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+          <div className="bg-card rounded-lg p-4 border border-border space-y-4">
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Categoria Principal
@@ -250,11 +304,13 @@ export function ServiceDetails() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-          <span>{service.category.main_category.name}</span>
-          <ChevronRight className="h-4 w-4" />
-          <span>{service.category.name}</span>
-        </div>
+        {service.category && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <span>{service.category?.main_category?.name}</span>
+            <ChevronRight className="h-4 w-4" />
+            <span>{service.category?.name}</span>
+          </div>
+        )}
 
         <h1 className="text-2xl font-bold mb-6">{service.title}</h1>
 
@@ -354,7 +410,35 @@ export function ServiceDetails() {
                 {service.description}
               </p>
             </div>
+
+            {service.portfolio_sites && service.portfolio_sites.length > 0 && (
+              <div className="bg-card rounded-lg p-4 border border-border">
+                <h2 className="text-lg font-semibold mb-3">Portfólio</h2>
+                <div className="space-y-2">
+                  {service.portfolio_sites.map((site) => (
+                    <a
+                      key={site.id}
+                      href={site.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <LinkIcon className="h-4 w-4" />
+                      <span className="text-sm truncate">{site.url}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <ServiceRating 
+            serviceId={service.id} 
+            ownerId={service.profile.id}
+            onRatingAdded={loadData}
+          />
         </div>
       </div>
     </div>

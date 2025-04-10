@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { User } from '@supabase/supabase-js';
-import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase, Menu, X, Eye, EyeOff } from 'lucide-react';
+import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase, Menu, X, Eye, EyeOff, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { supabase } from '../lib/supabase';
 import { ServiceForm } from '../components/ServiceForm';
 import { JobForm } from '../components/JobForm';
 import { DeleteModal } from '../components/DeleteModal';
+import { Dashboard } from '../components/Dashboard';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
@@ -42,19 +43,39 @@ type Profile = {
   bio: string | null;
 };
 
-type Section = 'services' | 'jobs' | 'profile' | 'password' | 'payments';
+type Rating = {
+  id: string;
+  service: {
+    id: string;
+    title: string;
+  };
+  rating: boolean;
+  comment: string;
+  reviewer_name: string | null;
+  whatsapp: string | null;
+  created_at: string;
+  replies: {
+    id: string;
+    reply: string;
+    created_at: string;
+  }[];
+};
+
+type Section = 'dashboard' | 'services' | 'jobs' | 'profile' | 'password' | 'payments' | 'positive-ratings' | 'negative-ratings';
 
 export function Profile() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [services, setServices] = useState<Service[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [ratings, setRatings] = useState<Rating[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [isJobFormOpen, setIsJobFormOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<Section>('services');
+  const [activeSection, setActiveSection] = useState<Section>('dashboard');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [deleteModal, setDeleteModal] = useState<{
@@ -64,6 +85,9 @@ export function Profile() {
     title: string;
   } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [editingReply, setEditingReply] = useState<{id: string, reply: string} | null>(null);
 
   // Profile form state
   const [fullName, setFullName] = useState('');
@@ -80,25 +104,20 @@ export function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Effect to show development notice when payments section is selected
   useEffect(() => {
-    if (activeSection === 'payments') {
-      toast.info('Área em desenvolvimento. Em breve você poderá gerenciar seus pagamentos aqui!');
+    // Set active section from navigation state if provided
+    const state = location.state as { section?: Section };
+    if (state?.section) {
+      setActiveSection(state.section);
+      // Clear the state to prevent persisting the section
+      navigate(location.pathname, { replace: true });
     }
-  }, [activeSection]);
+  }, [location]);
 
   async function loadData() {
     if (!user) return;
 
     try {
-      // Ensure session is valid before making requests
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Sessão expirada. Por favor, faça login novamente.');
-        navigate('/auth');
-        return;
-      }
-
       const [servicesResponse, jobsResponse, profileResponse] = await Promise.all([
         supabase
           .from('services')
@@ -117,6 +136,26 @@ export function Profile() {
 
       if (servicesResponse.data) {
         setServices(servicesResponse.data);
+        
+        // Load ratings after services are loaded
+        const { data: ratingsData } = await supabase
+          .from('service_ratings')
+          .select(`
+            id,
+            rating,
+            comment,
+            reviewer_name,
+            whatsapp,
+            created_at,
+            service:services(id, title),
+            replies:service_rating_replies(*)
+          `)
+          .in('service_id', servicesResponse.data.map(s => s.id))
+          .order('created_at', { ascending: false });
+
+        if (ratingsData) {
+          setRatings(ratingsData);
+        }
       }
 
       if (jobsResponse.data) {
@@ -148,14 +187,6 @@ export function Profile() {
     if (!user) return;
 
     try {
-      // Ensure session is valid before making requests
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Sessão expirada. Por favor, faça login novamente.');
-        navigate('/auth');
-        return;
-      }
-
       setSaving(true);
 
       const { error } = await supabase
@@ -195,17 +226,8 @@ export function Profile() {
     }
 
     try {
-      // Ensure session is valid before making requests
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Sessão expirada. Por favor, faça login novamente.');
-        navigate('/auth');
-        return;
-      }
-
       setSaving(true);
 
-      // Primeiro, verificar a senha atual
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email!,
         password: currentPassword
@@ -220,7 +242,6 @@ export function Profile() {
         return;
       }
 
-      // Se a senha atual estiver correta, atualizar para a nova senha
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -240,6 +261,52 @@ export function Profile() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleReplyToRating(ratingId: string) {
+    if (!replyText.trim()) {
+      toast.error('Digite uma resposta');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('service_rating_replies')
+        .insert({
+          rating_id: ratingId,
+          reply: replyText.trim()
+        });
+
+      if (error) throw error;
+
+      toast.success('Resposta enviada com sucesso!');
+      setReplyText('');
+      setReplyingTo(null);
+      loadData();
+    } catch (error) {
+      console.error('Error replying to rating:', error);
+      toast.error('Erro ao enviar resposta');
+    }
+  }
+
+  async function handleUpdateReply() {
+    if (!editingReply) return;
+
+    try {
+      const { error } = await supabase
+        .from('service_rating_replies')
+        .update({ reply: editingReply.reply })
+        .eq('id', editingReply.id);
+
+      if (error) throw error;
+
+      toast.success('Resposta atualizada com sucesso!');
+      setEditingReply(null);
+      loadData();
+    } catch (error) {
+      console.error('Error updating reply:', error);
+      toast.error('Erro ao atualizar resposta');
     }
   }
 
@@ -308,6 +375,22 @@ export function Profile() {
           <div className="p-2 flex-1 overflow-y-auto">
             <button
               onClick={() => {
+                setActiveSection('dashboard');
+                setIsSidebarOpen(false);
+              }}
+              className={cn(
+                "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                activeSection === 'dashboard'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-secondary"
+              )}
+            >
+              <CreditCard className="h-4 w-4" />
+              Dashboard
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveSection('services');
                 setIsSidebarOpen(false);
               }}
@@ -336,6 +419,38 @@ export function Profile() {
             >
               <Briefcase className="h-4 w-4" />
               Vagas de Emprego
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSection('positive-ratings');
+                setIsSidebarOpen(false);
+              }}
+              className={cn(
+                "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                activeSection === 'positive-ratings'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-secondary"
+              )}
+            >
+              <ThumbsUp className="h-4 w-4" />
+              Avaliações Positivas
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSection('negative-ratings');
+                setIsSidebarOpen(false);
+              }}
+              className={cn(
+                "w-full px-4 py-2 rounded-lg text-left flex items-center gap-2 transition-colors",
+                activeSection === 'negative-ratings'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-secondary"
+              )}
+            >
+              <ThumbsDown className="h-4 w-4" />
+              Avaliações Negativas
             </button>
 
             <button
@@ -411,6 +526,10 @@ export function Profile() {
 
       {/* Main Content */}
       <div className="flex-1 p-4 lg:p-6">
+        {activeSection === 'dashboard' && (
+          <Dashboard />
+        )}
+
         {activeSection === 'services' && (
           <div>
             <div className="flex items-center justify-between mb-8">
@@ -537,6 +656,135 @@ export function Profile() {
           </div>
         )}
 
+        {(activeSection === 'positive-ratings' || activeSection === 'negative-ratings') && (
+          <div>
+            <h1 className="text-3xl font-bold mb-8">
+              Avaliações {activeSection === 'positive-ratings' ? 'Positivas' : 'Negativas'}
+            </h1>
+
+            <div className="space-y-4">
+              {ratings
+                .filter(rating => rating.rating === (activeSection === 'positive-ratings'))
+                .map((rating) => (
+                  <div key={rating.id} className="bg-card rounded-lg border border-border p-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                      <span>Serviço:</span>
+                      <span className="font-medium">{rating.service.title}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                      {rating.rating ? (
+                        <ThumbsUp className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ThumbsDown className="h-5 w-5 text-destructive" />
+                      )}
+                      <span className="font-medium">
+                        {rating.reviewer_name || 'Usuário'}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(rating.created_at).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+
+                    <p className="text-sm mb-4">{rating.comment}</p>
+
+                    {rating.replies?.map((reply) => (
+                      <div key={reply.id} className="pl-4 border-l-2 border-border mb-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Sua resposta</span>
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(reply.created_at).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        {editingReply?.id === reply.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editingReply.reply}
+                              onChange={(e) => setEditingReply({ ...editingReply, reply: e.target.value })}
+                              className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleUpdateReply}
+                                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingReply(null)}
+                                className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 transition-opacity"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group">
+                            <p className="text-sm">{reply.reply}</p>
+                            <button
+                              onClick={() => setEditingReply(reply)}
+                              className="text-sm text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {!rating.replies?.length && (
+                      <div>
+                        {replyingTo === rating.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder="Escreva sua resposta..."
+                              className="w-full px-4 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleReplyToRating(rating.id)}
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity"
+                              >
+                                Enviar
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setReplyingTo(null);
+                                  setReplyText('');
+                                }}
+                                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setReplyingTo(rating.id)}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Responder
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+              {ratings.filter(rating => rating.rating === (activeSection === 'positive-ratings')).length === 0 && (
+                <div className="text-center py-8 bg-card rounded-lg border border-border">
+                  <p className="text-muted-foreground">
+                    Nenhuma avaliação {activeSection === 'positive-ratings' ? 'positiva' : 'negativa'} encontrada
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeSection === 'profile' && (
           <div>
             <h1 className="text-3xl font-bold mb-8">Dados Cadastrais</h1>
@@ -596,21 +844,22 @@ export function Profile() {
 
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Biografia
+                    Bio
                   </label>
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary min-h-[100px]"
+                    className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    rows={4}
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                  {saving ? 'Salvando...' : 'Salvar'}
                 </button>
               </form>
             </div>
@@ -629,7 +878,7 @@ export function Profile() {
                   </label>
                   <div className="relative">
                     <input
-                      type={showCurrentPassword ? "text" : "password"}
+                      type={showCurrentPassword ? 'text' : 'password'}
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-10"
@@ -638,7 +887,7 @@ export function Profile() {
                     <button
                       type="button"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                     >
                       {showCurrentPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -655,7 +904,7 @@ export function Profile() {
                   </label>
                   <div className="relative">
                     <input
-                      type={showNewPassword ? "text" : "password"}
+                      type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-10"
@@ -664,7 +913,7 @@ export function Profile() {
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                     >
                       {showNewPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -681,7 +930,7 @@ export function Profile() {
                   </label>
                   <div className="relative">
                     <input
-                      type={showConfirmPassword ? "text" : "password"}
+                      type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-10"
@@ -690,7 +939,7 @@ export function Profile() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -704,9 +953,9 @@ export function Profile() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Alterando...' : 'Alterar Senha'}
+                  {saving ? 'Salvando...' : 'Salvar'}
                 </button>
               </form>
             </div>
@@ -715,57 +964,56 @@ export function Profile() {
 
         {activeSection === 'payments' && (
           <div>
-            <h1 className="text-3xl font-bold mb-8">Histórico de Pagamentos</h1>
+            <h1 className="text-3xl font-bold mb-8">Pagamentos</h1>
 
-            <div className="bg-card rounded-lg border border-border overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4">Data</th>
-                    <th className="text-left p-4">Valor</th>
-                    <th className="text-center p-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colSpan={3} className="text-center p-8 text-muted-foreground">
-                      Nenhum pagamento encontrado
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="text-center py-8 bg-card rounded-lg border border-border">
+              <p className="text-muted-foreground">
+                Em breve você poderá gerenciar seus pagamentos aqui
+              </p>
             </div>
           </div>
         )}
       </div>
 
-      <ServiceForm 
-        isOpen={isServiceFormOpen}
-        onClose={() => {
-          setIsServiceFormOpen(false);
-          setSelectedService(null);
-        }}
-        onSuccess={loadData}
-        service={selectedService}
-      />
+      {/* Service Form Modal */}
+      {isServiceFormOpen && (
+        <ServiceForm
+          service={selectedService}
+          onClose={() => {
+            setIsServiceFormOpen(false);
+            setSelectedService(null);
+          }}
+          onSuccess={() => {
+            setIsServiceFormOpen(false);
+            setSelectedService(null);
+            loadData();
+          }}
+        />
+      )}
 
-      <JobForm
-        isOpen={isJobFormOpen}
-        onClose={() => {
-          setIsJobFormOpen(false);
-          setSelectedJob(null);
-        }}
-        onSuccess={loadData}
-        job={selectedJob}
-      />
+      {/* Job Form Modal */}
+      {isJobFormOpen && (
+        <JobForm
+          job={selectedJob}
+          onClose={() => {
+            setIsJobFormOpen(false);
+            setSelectedJob(null);
+          }}
+          onSuccess={() => {
+            setIsJobFormOpen(false);
+            setSelectedJob(null);
+            loadData();
+          }}
+        />
+      )}
 
+      {/* Delete Confirmation Modal */}
       {deleteModal && (
         <DeleteModal
-          isOpen={true}
-          onClose={() => setDeleteModal(null)}
+          title={`Excluir ${deleteModal.type === 'service' ? 'Serviço' : 'Vaga'}`}
+          description={`Tem certeza que deseja excluir ${deleteModal.type === 'service' ? 'o serviço' : 'a vaga'} "${deleteModal.title}"? Esta ação não pode ser desfeita.`}
           onConfirm={handleDelete}
-          title="Confirmar Exclusão"
-          message={`Tem certeza que deseja excluir ${deleteModal.type === 'service' ? 'o serviço' : 'a vaga'} "${deleteModal.title}"? Esta ação não pode ser desfeita.`}
+          onCancel={() => setDeleteModal(null)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Network, Menu, X, Shield } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -51,6 +52,7 @@ export function Header() {
 
         {/* Desktop Navigation */}
         <div className="hidden sm:flex items-center gap-4">
+          {user && <NotificationBell />}
           <ThemeToggle />
           {user ? (
             <>
@@ -97,6 +99,7 @@ export function Header() {
       {isMenuOpen && (
         <div className="sm:hidden bg-card border-t border-border">
           <div className="container py-4 flex flex-col gap-4">
+            {user && <NotificationBell />}
             <ThemeToggle className="w-full justify-center" />
             {user ? (
               <>

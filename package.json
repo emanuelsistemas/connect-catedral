@@ -18,7 +18,8 @@
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.1",
     "react-toastify": "^10.0.4",
-    "react-input-mask": "^3.0.0-alpha.2"
+    "react-input-mask": "^3.0.0-alpha.2",
+    "recharts": "^2.12.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
