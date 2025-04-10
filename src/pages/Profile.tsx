@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { User } from '@supabase/supabase-js';
-import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase, Menu, X, Eye, EyeOff, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
+import { CreditCard, LogOut, Settings, User as UserIcon, Pencil, Trash2, Briefcase, Menu, X, Eye, EyeOff, ThumbsUp, ThumbsDown, Ban, CheckCircle, ArrowRight, MessageSquare } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { supabase } from '../lib/supabase';
 import { ServiceForm } from '../components/ServiceForm';
@@ -21,6 +21,8 @@ type Service = {
   description: string;
   price: number | null;
   category_id: string;
+  positive_ratings_count: number;
+  negative_ratings_count: number;
 };
 
 type Job = {
@@ -63,8 +65,58 @@ type Rating = {
 
 type Section = 'dashboard' | 'services' | 'jobs' | 'profile' | 'password' | 'payments' | 'positive-ratings' | 'negative-ratings';
 
-export function Profile() {
-  const { user } = useAuth();
+interface StatusModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  isActivating: boolean;
+}
+
+function StatusModal({ isOpen, onClose, onConfirm, isActivating }: StatusModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-card rounded-lg p-6 max-w-md w-full">
+        <h3 className="text-xl font-bold mb-4">Atenção!</h3>
+        {isActivating ? (
+          <p className="text-muted-foreground mb-6">
+            Ao ativar este serviço, ele voltará a aparecer para os visitantes do sistema.
+          </p>
+        ) : (
+          <p className="text-muted-foreground mb-6">
+            Ao inativar este serviço, ele não aparecerá mais para os visitantes do sistema até que seja ativado novamente.
+          </p>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 px-4 border border-input rounded-lg hover:bg-accent transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className={cn(
+              "flex-1 py-2 px-4 rounded-lg hover:opacity-90 transition-opacity",
+              isActivating
+                ? "bg-primary text-primary-foreground"
+                : "bg-destructive text-destructive-foreground"
+            )}
+          >
+            {isActivating ? 'Ativar' : 'Inativar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Profile() {
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [services, setServices] = useState<Service[]>([]);
@@ -83,6 +135,11 @@ export function Profile() {
     type: 'service' | 'job';
     id: string;
     title: string;
+  } | null>(null);
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    serviceId: string;
+    currentStatus: string;
   } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -118,11 +175,41 @@ export function Profile() {
     if (!user) return;
 
     try {
-      const [servicesResponse, jobsResponse, profileResponse] = await Promise.all([
-        supabase
-          .from('services')
-          .select('*')
-          .order('created_at', { ascending: false }),
+      // Get all services with ratings counts
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select(`
+          id,
+          title,
+          description,
+          price,
+          category_id,
+          status,
+          views_count,
+          whatsapp_clicks
+        `)
+        .eq('profile_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (servicesError) throw servicesError;
+
+      // Get ratings counts for each service
+      const servicesWithRatings = await Promise.all(servicesData.map(async (service) => {
+        const { data: ratings } = await supabase
+          .from('service_ratings')
+          .select('rating')
+          .eq('service_id', service.id);
+
+        return {
+          ...service,
+          positive_ratings_count: ratings?.filter(r => r.rating === true).length || 0,
+          negative_ratings_count: ratings?.filter(r => r.rating === false).length || 0
+        };
+      }));
+
+      setServices(servicesWithRatings);
+
+      const [jobsResponse, profileResponse] = await Promise.all([
         supabase
           .from('job_listings')
           .select('*')
@@ -133,30 +220,6 @@ export function Profile() {
           .eq('id', user.id)
           .single()
       ]);
-
-      if (servicesResponse.data) {
-        setServices(servicesResponse.data);
-        
-        // Load ratings after services are loaded
-        const { data: ratingsData } = await supabase
-          .from('service_ratings')
-          .select(`
-            id,
-            rating,
-            comment,
-            reviewer_name,
-            whatsapp,
-            created_at,
-            service:services(id, title),
-            replies:service_rating_replies(*)
-          `)
-          .in('service_id', servicesResponse.data.map(s => s.id))
-          .order('created_at', { ascending: false });
-
-        if (ratingsData) {
-          setRatings(ratingsData);
-        }
-      }
 
       if (jobsResponse.data) {
         setJobs(jobsResponse.data);
@@ -169,6 +232,26 @@ export function Profile() {
         setPhone(profileResponse.data.phone);
         setEmail(profileResponse.data.email);
         setBio(profileResponse.data.bio || '');
+      }
+
+      // Load ratings after services are loaded
+      const { data: ratingsData } = await supabase
+        .from('service_ratings')
+        .select(`
+          id,
+          rating,
+          comment,
+          reviewer_name,
+          whatsapp,
+          created_at,
+          service:services(id, title),
+          replies:service_rating_replies(*)
+        `)
+        .in('service_id', servicesData.map(s => s.id))
+        .order('created_at', { ascending: false });
+
+      if (ratingsData) {
+        setRatings(ratingsData);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -334,6 +417,54 @@ export function Profile() {
     } finally {
       setDeleteModal(null);
     }
+  }
+
+  async function handleToggleServiceStatus(serviceId: string, currentStatus: string) {
+    setStatusModal({
+      isOpen: true,
+      serviceId,
+      currentStatus
+    });
+  }
+
+  async function handleConfirmStatusChange() {
+    if (!statusModal) return;
+
+    try {
+      const newStatus = statusModal.currentStatus === 'active' ? 'inactive' : 'active';
+      
+      const { error } = await supabase
+        .from('services')
+        .update({ status: newStatus })
+        .eq('id', statusModal.serviceId);
+
+      if (error) throw error;
+
+      setServices(services.map(service => {
+        if (service.id === statusModal.serviceId) {
+          return {
+            ...service,
+            status: newStatus
+          };
+        }
+        return service;
+      }));
+
+      toast.success(`Serviço ${newStatus === 'active' ? 'ativado' : 'inativado'} com sucesso!`);
+    } catch (error) {
+      console.error('Error toggling service status:', error);
+      toast.error('Erro ao alterar status do serviço');
+    }
+  }
+
+  function handleEditService(service: Service) {
+    setSelectedService(service);
+    setIsServiceFormOpen(true);
+  }
+
+  function handleEditJob(job: Job) {
+    setSelectedJob(job);
+    setIsJobFormOpen(true);
   }
 
   async function handleSignOut() {
@@ -549,18 +680,81 @@ export function Profile() {
             <div className="grid gap-4">
               {services.map((service) => (
                 <div key={service.id} className="bg-card rounded-lg border border-border p-4">
-                  <h2 className="text-lg font-semibold mb-2">{service.title}</h2>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <span>Visualizações:</span>
-                      <span className="font-medium">{service.views_count || 0}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-background/50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <Eye className="h-4 w-4" />
+                        <span className="text-sm">Visualizações</span>
+                      </div>
+                      <p className="text-xl font-semibold">{service.views_count || 0}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span>Cliques WhatsApp:</span>
-                      <span className="font-medium">{service.whatsapp_clicks || 0}</span>
+
+                    <div className="bg-background/50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="text-sm">Cliques WhatsApp</span>
+                      </div>
+                      <p className="text-xl font-semibold">{service.whatsapp_clicks || 0}</p>
                     </div>
+
+                    <button
+                      onClick={() => navigate(`/servicos/${service.id}/avaliacoes?filter=positive`)}
+                      className="bg-background/50 p-3 rounded-lg hover:border-primary transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2 text-green-600 mb-1">
+                        <ThumbsUp className="h-4 w-4" />
+                        <span className="text-sm">Avaliações Positivas</span>
+                      </div>
+                      <p className="text-xl font-semibold">{service.positive_ratings_count || 0}</p>
+                    </button>
+
+                    <button
+                      onClick={() => navigate(`/servicos/${service.id}/avaliacoes?filter=negative`)}
+                      className="bg-background/50 p-3 rounded-lg hover:border-primary transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2 text-destructive mb-1">
+                        <ThumbsDown className="h-4 w-4" />
+                        <span className="text-sm">Avaliações Negativas</span>
+                      </div>
+                      <p className="text-xl font-semibold">{service.negative_ratings_count || 0}</p>
+                    </button>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
+
+                  <h2 className="text-lg font-semibold mb-2">{service.title}</h2>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                    <span>Status:</span>
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-1 rounded-full text-xs",
+                      service.status === 'active'
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                    )}>
+                      {service.status === 'active' ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => handleToggleServiceStatus(service.id, service.status)}
+                      className={cn(
+                        "flex-1 py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2",
+                        service.status === 'active'
+                          ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                          : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-800"
+                      )}
+                    >
+                      {service.status === 'active' ? (
+                        <>
+                          <Ban className="h-4 w-4" />
+                          <span>Inativar</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Ativar</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => handleEditService(service)}
                       className="flex-1 py-2 px-4 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
@@ -637,6 +831,7 @@ export function Profile() {
                         id: job.id,
                         title: job.title
                       })}
+                      
                       className="flex-1 py-2 px-4 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
                     >
                       Excluir
@@ -666,30 +861,38 @@ export function Profile() {
               {ratings
                 .filter(rating => rating.rating === (activeSection === 'positive-ratings'))
                 .map((rating) => (
-                  <div key={rating.id} className="bg-card rounded-lg border border-border p-4">
+                  <button
+                    key={rating.id}
+                    onClick={() => navigate(`/servicos/${rating.service.id}/avaliacoes`)}
+                    className="w-full text-left bg-card rounded-lg border border-border p-4 hover:border-primary transition-colors group"
+                  >
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                       <span>Serviço:</span>
                       <span className="font-medium">{rating.service.title}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 mb-2">
-                      {rating.rating ? (
-                        <ThumbsUp className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <ThumbsDown className="h-5 w-5 text-destructive" />
-                      )}
-                      <span className="font-medium">
-                        {rating.reviewer_name || 'Usuário'}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(rating.created_at).toLocaleString('pt-BR')}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {rating.rating ? (
+                          <ThumbsUp className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <ThumbsDown className="h-5 w-5 text-destructive" />
+                        )}
+                        <span className="font-medium">
+                          {rating.reviewer_name || 'Usuário'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(rating.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+
+                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
                     <p className="text-sm mb-4">{rating.comment}</p>
 
                     {rating.replies?.map((reply) => (
-                      <div key={reply.id} className="pl-4 border-l-2 border-border mb-2">
+                      <div key={reply.id} className="pl-4 border-l-2 border-border">
                         <div className="flex items-center gap-2 mb-1">
                           <MessageSquare className="h-4 w-4 text-primary" />
                           <span className="text-sm font-medium">Sua resposta</span>
@@ -697,39 +900,7 @@ export function Profile() {
                             {new Date(reply.created_at).toLocaleString('pt-BR')}
                           </span>
                         </div>
-                        {editingReply?.id === reply.id ? (
-                          <div className="space-y-2">
-                            <textarea
-                              value={editingReply.reply}
-                              onChange={(e) => setEditingReply({ ...editingReply, reply: e.target.value })}
-                              className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={handleUpdateReply}
-                                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
-                              >
-                                Salvar
-                              </button>
-                              <button
-                                onClick={() => setEditingReply(null)}
-                                className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 transition-opacity"
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="group">
-                            <p className="text-sm">{reply.reply}</p>
-                            <button
-                              onClick={() => setEditingReply(reply)}
-                              className="text-sm text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        )}
+                        <p className="text-sm">{reply.reply}</p>
                       </div>
                     ))}
 
@@ -742,16 +913,21 @@ export function Profile() {
                               onChange={(e) => setReplyText(e.target.value)}
                               placeholder="Escreva sua resposta..."
                               className="w-full px-4 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                              onClick={(e) => e.stopPropagation()}
                             />
                             <div className="flex gap-2">
                               <button
-                                onClick={() => handleReplyToRating(rating.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyToRating(rating.id);
+                                }}
                                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity"
                               >
                                 Enviar
                               </button>
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setReplyingTo(null);
                                   setReplyText('');
                                 }}
@@ -763,7 +939,10 @@ export function Profile() {
                           </div>
                         ) : (
                           <button
-                            onClick={() => setReplyingTo(rating.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyingTo(rating.id);
+                            }}
                             className="text-sm text-primary hover:underline"
                           >
                             Responder
@@ -771,7 +950,7 @@ export function Profile() {
                         )}
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
 
               {ratings.filter(rating => rating.rating === (activeSection === 'positive-ratings')).length === 0 && (
@@ -978,6 +1157,7 @@ export function Profile() {
       {/* Service Form Modal */}
       {isServiceFormOpen && (
         <ServiceForm
+          isOpen={isServiceFormOpen}
           service={selectedService}
           onClose={() => {
             setIsServiceFormOpen(false);
@@ -994,6 +1174,7 @@ export function Profile() {
       {/* Job Form Modal */}
       {isJobFormOpen && (
         <JobForm
+          isOpen={isJobFormOpen}
           job={selectedJob}
           onClose={() => {
             setIsJobFormOpen(false);
@@ -1016,6 +1197,18 @@ export function Profile() {
           onCancel={() => setDeleteModal(null)}
         />
       )}
+
+      {/* Status Confirmation Modal */}
+      {statusModal && (
+        <StatusModal
+          isOpen={true}
+          onClose={() => setStatusModal(null)}
+          onConfirm={handleConfirmStatusChange}
+          isActivating={statusModal.currentStatus === 'inactive'}
+        />
+      )}
     </div>
   );
 }
+
+export { Profile }

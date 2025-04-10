@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter, LinkIcon } from 'lucide-react';
+import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter, LinkIcon, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatPhoneNumber, cn } from '../lib/utils';
 import { ServiceRating } from '../components/ServiceRating';
@@ -434,6 +434,16 @@ export function ServiceDetails() {
         </div>
 
         <div className="mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold">Avaliações</h2>
+            <Link
+              to={`/servicos/${service.id}/avaliacoes`}
+              className="text-primary hover:underline text-sm"
+            >
+              Ver todas as avaliações
+            </Link>
+          </div>
+
           <ServiceRating 
             serviceId={service.id} 
             ownerId={service.profile.id}

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Bell, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
+import { toast } from 'react-toastify';
 
 interface Notification {
   id: string;
@@ -18,6 +19,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -46,11 +48,23 @@ export function NotificationBell() {
     }
   }, [user]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   async function loadNotifications() {
     try {
       const { data } = await supabase
         .from('notifications')
         .select('*')
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -71,7 +85,8 @@ export function NotificationBell() {
         await supabase
           .from('notifications')
           .update({ read: true })
-          .eq('id', notificationId);
+          .eq('id', notificationId)
+          .eq('user_id', user?.id);
 
         setNotifications(prev =>
           prev.map(n =>
@@ -94,10 +109,41 @@ export function NotificationBell() {
     }
   }
 
+  async function deleteNotification(notificationId: string) {
+    try {
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('user_id', user?.id);
+
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      toast.success('Notificação removida com sucesso!');
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast.error('Erro ao remover notificação');
+    }
+  }
+
+  async function deleteAllNotifications() {
+    try {
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user?.id);
+
+      setNotifications([]);
+      toast.success('Todas as notificações foram removidas!');
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+      toast.error('Erro ao remover notificações');
+    }
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
         className="p-2 hover:bg-secondary rounded-lg transition-colors relative"
@@ -114,14 +160,24 @@ export function NotificationBell() {
         <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-lg z-50">
           <div className="p-4 border-b border-border flex items-center justify-between">
             <h3 className="font-semibold">Notificações</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={() => markAsRead()}
-                className="text-sm text-primary hover:underline"
-              >
-                Marcar todas como lidas
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markAsRead()}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Marcar todas como lidas
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => deleteAllNotifications()}
+                  className="text-sm text-destructive hover:underline"
+                >
+                  Limpar todas
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-96 overflow-y-auto">
@@ -153,9 +209,20 @@ export function NotificationBell() {
                         {new Date(notification.created_at).toLocaleString('pt-BR')}
                       </p>
                     </div>
-                    {!notification.read && (
-                      <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
-                    )}
+                    <div className="flex items-start gap-2">
+                      {!notification.read && (
+                        <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
+                        className="p-1 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))

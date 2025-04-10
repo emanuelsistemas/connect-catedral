@@ -48,7 +48,7 @@ export function Auth() {
         return;
       }
 
-      setShowAdminModal(true);
+      handleSignUp();
       return;
     }
 
@@ -76,11 +76,6 @@ export function Auth() {
   }
 
   async function handleSignUp() {
-    if (adminPassword !== import.meta.env.VITE_ADMIN_PASSWORD) {
-      toast.error('Senha de administrador incorreta');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -93,11 +88,10 @@ export function Auth() {
       if (existingUser) {
         toast.error('Este e-mail já está cadastrado');
         setIsLogin(true);
-        setShowAdminModal(false);
         return;
       }
 
-      const { data, error } = await signUp(email, password, {
+      const response = await signUp(email, password, {
         data: {
           full_name: fullName,
           company_name: companyName,
@@ -105,13 +99,11 @@ export function Auth() {
         },
       });
 
-      if (error) throw error;
+      if (response?.error) throw response.error;
 
-      if (data) {
-        toast.success('Conta criada com sucesso! Você já pode fazer login.');
-        setIsLogin(true);
-        resetForm();
-      }
+      toast.success('Conta criada com sucesso! Você já pode fazer login.');
+      setIsLogin(true);
+      resetForm();
     } catch (err: any) {
       console.error('Signup error:', err);
       if (err.message?.includes('User already registered')) {
@@ -122,7 +114,6 @@ export function Auth() {
       }
     } finally {
       setLoading(false);
-      setShowAdminModal(false);
     }
   }
 
@@ -188,9 +179,25 @@ export function Auth() {
     }
   }
 
-  function toggleForm() {
-    setIsLogin(!isLogin);
-    resetForm();
+  function handleToggleForm() {
+    if (!isLogin) {
+      setIsLogin(true);
+      resetForm();
+      return;
+    }
+
+    setShowAdminModal(true);
+  }
+
+  function handleConfirmAdminPassword() {
+    if (adminPassword !== import.meta.env.VITE_ADMIN_PASSWORD) {
+      toast.error('Senha de administrador incorreta');
+      return;
+    }
+
+    setShowAdminModal(false);
+    setIsLogin(false);
+    setAdminPassword('');
   }
 
   return (
@@ -377,7 +384,7 @@ export function Auth() {
           {!isAdminAuth && (
             <div className="mt-6 text-center">
               <button
-                onClick={toggleForm}
+                onClick={handleToggleForm}
                 className="text-primary hover:underline text-sm"
               >
                 {isLogin
@@ -424,7 +431,7 @@ export function Auth() {
                 Cancelar
               </button>
               <button
-                onClick={isAdminAuth ? handleAdminAccess : handleSignUp}
+                onClick={isAdminAuth ? handleAdminAccess : handleConfirmAdminPassword}
                 disabled={loading}
                 className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
               >

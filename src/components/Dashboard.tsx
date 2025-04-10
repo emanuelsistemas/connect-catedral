@@ -26,7 +26,6 @@ export function Dashboard() {
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('week');
 
   useEffect(() => {
-    // Only load data if user is authenticated
     if (!user) {
       setLoading(false);
       return;
@@ -57,7 +56,7 @@ export function Dashboard() {
       // Get all services for this user
       const { data: services } = await supabase
         .from('services')
-        .select('id')
+        .select('id, views_count, whatsapp_clicks')
         .eq('profile_id', user.id);
 
       if (!services?.length) {
@@ -72,26 +71,27 @@ export function Dashboard() {
         return;
       }
 
-      const serviceIds = services.map(s => s.id);
+      // Calculate totals from all services
+      const totalViews = services.reduce((sum, service) => sum + (service.views_count || 0), 0);
+      const totalClicks = services.reduce((sum, service) => sum + (service.whatsapp_clicks || 0), 0);
 
-      // Get views data
+      // Get all ratings for user's services
+      const { data: ratings } = await supabase
+        .from('service_ratings')
+        .select('rating')
+        .in('service_id', services.map(s => s.id));
+
+      // Calculate ratings
+      const totalRatings = ratings?.length || 0;
+      const positiveRatings = ratings?.filter(r => r.rating === true).length || 0;
+      const negativeRatings = ratings?.filter(r => r.rating === false).length || 0;
+
+      // Get views data for chart
       const { data: views } = await supabase
         .from('service_views')
         .select('viewed_at')
-        .in('service_id', serviceIds)
+        .in('service_id', services.map(s => s.id))
         .gte('viewed_at', startDate.toISOString());
-
-      // Get ratings data
-      const { data: ratings } = await supabase
-        .from('service_ratings')
-        .select('rating, created_at')
-        .in('service_id', serviceIds);
-
-      // Get total clicks
-      const { data: servicesData } = await supabase
-        .from('services')
-        .select('whatsapp_clicks')
-        .in('id', serviceIds);
 
       // Process views data for chart
       const viewsByDate = new Map<string, number>();
@@ -105,13 +105,6 @@ export function Dashboard() {
         views
       }));
 
-      // Calculate totals
-      const totalViews = views?.length || 0;
-      const totalClicks = servicesData?.reduce((sum, s) => sum + (s.whatsapp_clicks || 0), 0) || 0;
-      const totalRatings = ratings?.length || 0;
-      const positiveRatings = ratings?.filter(r => r.rating).length || 0;
-      const negativeRatings = ratings?.filter(r => !r.rating).length || 0;
-
       setData({
         totalViews,
         totalClicks,
@@ -122,6 +115,7 @@ export function Dashboard() {
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }

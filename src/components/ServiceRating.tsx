@@ -2,17 +2,22 @@ import { useState, useEffect } from 'react';
 import { ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { toast } from 'react-toastify';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
 interface Rating {
   id: string;
+  service: {
+    id: string;
+    title: string;
+  };
   rating: boolean;
   comment: string;
-  created_at: string;
   reviewer_name: string | null;
-  user_id: string | null;
+  whatsapp: string | null;
+  created_at: string;
   replies: {
     id: string;
     reply: string;
@@ -89,7 +94,8 @@ export function ServiceRating({ serviceId, ownerId, onRatingAdded }: ServiceRati
           replies:service_rating_replies(*)
         `)
         .eq('service_id', serviceId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(3); // Mostrar apenas as 3 avaliações mais recentes na página do serviço
 
       if (error) throw error;
 
@@ -286,7 +292,7 @@ export function ServiceRating({ serviceId, ownerId, onRatingAdded }: ServiceRati
       )}
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Avaliações</h3>
+        <h3 className="text-lg font-semibold">Avaliações Recentes</h3>
 
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">
@@ -372,6 +378,17 @@ export function ServiceRating({ serviceId, ownerId, onRatingAdded }: ServiceRati
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {ratings.length > 0 && (
+          <div className="text-center">
+            <Link
+              to={`/servicos/${serviceId}/avaliacoes`}
+              className="text-primary hover:underline text-sm"
+            >
+              Ver todas as avaliações
+            </Link>
           </div>
         )}
       </div>

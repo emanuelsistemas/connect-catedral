@@ -13,22 +13,30 @@ type Service = {
   is_budget: boolean;
   whatsapp: string;
   email: string;
-  status: 'active' | 'inactive' | 'pending';
+  whatsapp_clicks: number;
+  views_count: number;
+  positive_ratings_count: number;
+  total_ratings_count: number;
+  ranking_score: number;
   profile: {
+    id: string;
     full_name: string;
     company_name: string | null;
+    phone: string;
   };
   category: {
-    id: string;
     name: string;
     main_category: {
-      id: string;
       name: string;
     };
   };
   service_images: {
     url: string;
     is_featured: boolean;
+  }[];
+  portfolio_sites: {
+    id: string;
+    url: string;
   }[];
 };
 
@@ -38,6 +46,7 @@ type Job = {
   description: string;
   email: string;
   whatsapp: string | null;
+  whatsapp_clicks?: number;
   profile: {
     full_name: string;
     company_name: string | null;
@@ -91,16 +100,16 @@ export function Home() {
           .from('services')
           .select(`
             *,
-            profile:profiles(full_name, company_name),
+            profile:profiles(id, full_name, company_name, phone),
             category:sub_categories(
-              id,
               name,
-              main_category:main_categories(id, name)
+              main_category:main_categories(name)
             ),
-            service_images(url, is_featured)
+            service_images(url, is_featured),
+            portfolio_sites(id, url),
+            ratings:service_ratings(rating)
           `)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false }),
+          .eq('status', 'active'),
         supabase
           .from('job_listings')
           .select(`
@@ -125,7 +134,39 @@ export function Home() {
       if (categoriesResponse.error) throw categoriesResponse.error;
       if (departmentsResponse.error) throw departmentsResponse.error;
 
-      setServices(servicesResponse.data || []);
+      // Calcular ranking para cada serviço
+      const servicesWithRanking = servicesResponse.data.map(service => {
+        const ratings = service.ratings || [];
+        const positiveRatings = ratings.filter(r => r.rating === true).length;
+        const totalRatings = ratings.length;
+
+        // Normalizar métricas (0-1)
+        const maxViews = Math.max(...servicesResponse.data.map(s => s.views_count || 0));
+        const maxClicks = Math.max(...servicesResponse.data.map(s => s.whatsapp_clicks || 0));
+        
+        const normalizedViews = maxViews > 0 ? (service.views_count || 0) / maxViews : 0;
+        const normalizedClicks = maxClicks > 0 ? (service.whatsapp_clicks || 0) / maxClicks : 0;
+        const normalizedRating = totalRatings > 0 ? positiveRatings / totalRatings : 0;
+
+        // Calcular score (40% visualizações, 30% cliques, 30% avaliações positivas)
+        const rankingScore = (
+          normalizedViews * 0.4 +
+          normalizedClicks * 0.3 +
+          normalizedRating * 0.3
+        );
+
+        return {
+          ...service,
+          positive_ratings_count: positiveRatings,
+          total_ratings_count: totalRatings,
+          ranking_score: rankingScore
+        };
+      });
+
+      // Ordenar por ranking
+      const sortedServices = servicesWithRanking.sort((a, b) => b.ranking_score - a.ranking_score);
+
+      setServices(sortedServices);
       setJobs(jobsResponse.data || []);
       setMainCategories(categoriesResponse.data || []);
       setDepartments(departmentsResponse.data || []);
@@ -272,7 +313,7 @@ export function Home() {
         </div>
 
         {showFilters && (
-          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+          <div className="bg-card rounded-lg p-4 border border-border space-y-4">
             {listingType === 'services' ? (
               <>
                 <div>
