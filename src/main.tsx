@@ -1,24 +1,16 @@
-import { StrictMode } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ToastContainer } from 'react-toastify';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
-import 'react-toastify/dist/ReactToastify.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-    <ToastContainer
-      position="top-right"
-      autoClose={3000}
-      hideProgressBar={false}
-      newestOnTop
-      closeOnClick
-      rtl={false}
-      pauseOnFocusLoss
-      draggable
-      pauseOnHover
-      theme="colored"
-    />
-  </StrictMode>
-);
+// Redirecionar para a página estática
+window.location.href = '/index.html';
+
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}

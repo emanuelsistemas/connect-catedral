@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Remoto</title>
+    <link rel="icon" type="image/svg+xml" href="remote-access.svg">
+    <link rel="shortcut icon" type="image/svg+xml" href="remote-access.svg">
+    <link rel="apple-touch-icon" href="remote-access.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MuseoModerno:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos anteriores permanecem os mesmos */
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #dc2626;
+            --dark-bg: #121212;
+            --card-bg: #1e1e1e;
+            --card-hover: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 90%;
+            margin: 0 auto;
+            padding: 40px 0;
+            flex: 1;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 15px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            padding-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 50px;
+        }
+        
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            padding: 30px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .card:hover {
+            background-color: var(--card-hover);
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-link {
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .card-img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: contain;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .card-description {
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+        
+        .features {
+            margin: 20px 0;
+            text-align: left;
+            width: 100%;
+        }
+        
+        .features li {
+            margin-bottom: 10px;
+            list-style-type: none;
+            position: relative;
+            padding-left: 25px;
+            color: var(--text-secondary);
+        }
+        
+        .features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: var(--primary-color);
+        }
+        
+        .features li.red:before {
+            color: var(--secondary-color);
+        }
+        
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 25px;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            width: 100%;
+            justify-content: center;
+            margin-top: auto;
+        }
+        
+        .download-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3' /%3E%3C/svg%3E");
+            background-size: contain;
+        }
+        
+        .blue-btn {
+            background-color: var(--primary-color);
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+        
+        .blue-btn:hover {
+            background-color: #1d4ed8;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .red-btn {
+            background-color: var(--secondary-color);
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        
+        .red-btn:hover {
+            background-color: #b91c1c;
+            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .info-section {
+            background-color: rgba(37, 99, 235, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 50px;
+            border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+        
+        .info-section h2 {
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+        }
+        
+        .info-item {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .contact-item {
+            cursor: pointer;
+        }
+        
+        .contact-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-5px);
+        }
+        
+        .info-item h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .info-item h3 svg {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+        }
+        
+        .info-item p {
+            color: var(--text-secondary);
+        }
+        
+        .whatsapp-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        footer {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 30px 0;
+            text-align: center;
+            margin-top: auto;
+        }
+        
+        footer p {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        
+        .support-line {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .support-line svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .company {
+            font-family: 'MuseoModerno', cursive;
+            font-weight: 400;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+        }
+        
+        .browser-download-arrow {
+            position: fixed;
+            top: -15px;
+            right: 120px;
+            width: auto;
+            height: auto;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            z-index: 9999;
+            display: none;
+            pointer-events: none;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 0, 0.7));
+            animation: arrowPulse 1.5s infinite;
+            overflow: visible;
+        }
+        
+        .dark-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 9998;
+            display: none;
+            pointer-events: none;
+        }
+        
+        @keyframes arrowPulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .test-button-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin: 40px 0;
+            padding: 20px;
+            background-color: rgba(37, 99, 235, 0.1);
+            border-radius: 15px;
+        }
+        
+        .test-button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 20px 0;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+                margin-bottom: 30px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ferramentas de Acesso Remoto</h1>
+        <p class="subtitle">Soluções de suporte técnico à distância para uma assistência rápida e eficiente</p>
+        
+        <div class="cards">
+            <div class="card" id="rustdesk-card">
+                <a href="https://yizqriyqioovhwijwumm.supabase.co/storage/v1/object/public/files/07e86138-c4f8-4de5-81ab-bfe18fd6e666/0.6438339188635249.exe" class="card-link" download>
+                    <img src="https://avatars.githubusercontent.com/u/71636191?v=4" alt="RustDesk Logo" class="card-img">
+                    <h2>RustDesk</h2>
+                    <p class="card-description">Software de acesso remoto open-source, alternativa segura e de código aberto para suporte técnico</p>
+                    
+                    <ul class="features">
+                        <li>Software de código aberto e gratuito</li>
+                        <li>Não requer configuração de rede</li>
+                        <li>Controle total do computador remoto</li>
+                        <li>Transferência de arquivos integrada</li>
+                    </ul>
+                    
+                    <button class="download-btn blue-btn">
+                        <span class="download-icon"></span>
+                        Baixar RustDesk (Windows)
+                    </button>
+                </a>
+            </div>
+
+            <div class="card" id="anydesk-card">
+                <a href="https://download.anydesk.com/AnyDesk.exe" class="card-link" download>
+                    <img src="https://img.icons8.com/?size=512&id=cDG2YNX6xhA6&format=png" alt="AnyDesk Logo" class="card-img">
+                    <h2>AnyDesk</h2>
+                    <p class="card-description">Software de acesso remoto rápido e seguro, com interface intuitiva e alta performance</p>
+                    
+                    <ul class="features">
+                        <li class="red">Conexão de alta performance</li>
+                        <li class="red">Interface amigável e intuitiva</li>
+                        <li class="red">Compatível com múltiplos dispositivos</li>
+                        <li class="red">Segurança de dados criptografados</li>
+                    </ul>
+                    
+                    <button class="download-btn red-btn">
+                        <span class="download-icon"></span>
+                        Baixar AnyDesk (Windows)
+                    </button>
+                </a>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h2>Como utilizar</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2563eb">
+                            <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1.25 17.292l-4.5-4.364 1.857-1.858 2.643 2.506 5.643-5.784 1.857 1.857-7.5 7.643z"/>
+                        </svg>
+                        Passo 1
+                    </h3>
+                    <p>Escolha e baixe uma das ferramentas de acesso remoto disponíveis acima</p>
+                </div>
+                <div class="info-item">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2563eb">
+                            <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1.25 17.292l-4.5-4.364 1.857-1.858 2.643 2.506 5.643-5.784 1.857 1.857-7.5 7.643z"/>
+                        </svg>
+                        Passo 2
+                    </h3>
+                    <p>Instale o software selecionado no seu computador seguindo as instruções</p>
+                </div>
+                <div class="info-item">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2563eb">
+                            <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1.25 17.292l-4.5-4.364 1.857-1.858 2.643 2.506 5.643-5.784 1.857 1.857-7.5 7.643z"/>
+                        </svg>
+                        Passo 3
+                    </h3>
+                    <p>Entre em contato com o suporte técnico e forneça o ID/código de acesso exibido no programa</p>
+                </div>
+                <div class="info-item">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2563eb">
+                            <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1.25 17.292l-4.5-4.364 1.857-1.858 2.643 2.506 5.643-5.784 1.857 1.857-7.5 7.643z"/>
+                        </svg>
+                        Passo 4
+                    </h3>
+                    <p>Permita o acesso quando solicitado e aguarde o técnico conectar ao seu dispositivo</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h2>Suporte técnico</h2>
+            <p style="margin-bottom: 20px; text-align: center; color: var(--text-secondary);">
+                Para assistência técnica com as ferramentas de acesso remoto ou outros serviços, entre em contato:
+            </p>
+            <div class="info-grid">
+                <a href="https://wa.me/5512974070713" target="_blank" class="whatsapp-link">
+                    <div class="info-item contact-item">
+                        <h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#25D366">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                            </svg>
+                            WhatsApp
+                        </h3>
+                        <p>(12) 9 7406-0613</p>
+                    </div>
+                </a>
+                <div class="info-item">
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#dc2626">
+                            <path d="M0 3v18h24v-18h-24zm6.623 7.929l-4.623 5.712v-9.458l4.623 3.746zm-4.141-5.929h19.035l-9.517 7.713-9.518-7.713zm5.694 7.188l3.824 3.099 3.83-3.104 5.612 6.817h-18.779l5.513-6.812zm9.208-1.264l4.616-3.741v9.348l-4.616-5.607z"/>
+                        </svg>
+                        E-mail
+                    </h3>
+                    <p>suporte@valesis.com.br</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botão de teste adicionado aqui, antes do footer -->
+        <div class="test-button-container">
+            <button id="test-download-indicator" class="test-button">
+                Testar Indicador de Download
+            </button>
+        </div>
+    </div>
+
+    <footer>
+        <div class="support-line">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-1.31 7.526c-.099-.807.528-1.526 1.348-1.526.771 0 1.377.676 1.28 1.451l-.757 6.053c-.035.283-.276.496-.561.496s-.526-.213-.562-.496l-.748-5.978zm1.31 10.724c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
+            </svg>
+            <span>Suporte técnico profissional</span>
+        </div>
+        <p>Escolha a ferramenta de sua preferência para iniciar o acesso remoto</p>
+        <p class="company"><a href="https://emasoftware.io/" target="_blank" style="color: inherit; text-decoration: none; transition: color 0.3s ease;">ema-software</a></p>
+    </footer>
+
+    <!-- Overlay e seta para indicação de download -->
+    <div class="dark-overlay" id="dark-overlay"></div>
+    <div class="browser-download-arrow" id="browser-download-arrow">
+        <svg width="80" height="120" viewBox="0 0 40 80">
+            <line x1="25" y1="30" x2="25" y2="70" stroke="#FFFF00" stroke-width="5" stroke-linecap="round" />
+            <polygon points="25,15 15,30 35,30" fill="#FFFF00" />
+        </svg>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const rustdeskCard = document.getElementById('rustdesk-card');
+            const anydeskCard = document.getElementById('anydesk-card');
+            const browserArrow = document.getElementById('browser-download-arrow');
+            const darkOverlay = document.getElementById('dark-overlay');
+            const testButton = document.getElementById('test-download-indicator');
+            
+            function showDownloadIndicator() {
+                browserArrow.style.display = 'block';
+                darkOverlay.style.display = 'block';
+                
+                setTimeout(() => {
+                    browserArrow.style.display = 'none';
+                    darkOverlay.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Adiciona evento de clique ao botão de teste
+            if (testButton) {
+                testButton.addEventListener('click', () => {
+                    showDownloadIndicator();
+                });
+            }
+            
+            function handleCardClick(e, downloadUrl) {
+                if (!e.target.closest('.download-btn')) {
+                    e.preventDefault();
+                }
+                
+                showDownloadIndicator();
+                
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = '';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            if (rustdeskCard) {
+                const rustdeskUrl = rustdeskCard.querySelector('.card-link').href;
+                rustdeskCard.addEventListener('click', (e) => handleCardClick(e, rustdeskUrl));
+                
+                const rustdeskBtn = rustdeskCard.querySelector('.download-btn');
+                if (rustdeskBtn) {
+                    rustdeskBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showDownloadIndicator();
+                    });
+                }
+            }
+            
+            if (anydeskCard) {
+                const anydeskUrl = anydeskCard.querySelector('.card-link').href;
+                anydeskCard.addEventListener('click', (e) => handleCardClick(e, anydeskUrl));
+                
+                const anydeskBtn = anydeskCard.querySelector('.download-btn');
+                if (anydeskBtn) {
+                    anydeskBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        showDownloadIndicator();
+                    });
+                }
+            }
+        });
+    </script>
+</body>
+</html>
