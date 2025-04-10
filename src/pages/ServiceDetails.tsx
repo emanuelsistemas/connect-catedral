@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter, LinkIcon, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Building2, Search, Filter, LinkIcon, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatPhoneNumber, cn } from '../lib/utils';
 import { ServiceRating } from '../components/ServiceRating';
@@ -19,6 +19,8 @@ type Service = {
     full_name: string;
     company_name: string | null;
     phone: string;
+    bio: string | null;
+    email: string;
   };
   category: {
     name: string;
@@ -70,7 +72,7 @@ export function ServiceDetails() {
           .from('services')
           .select(`
             *,
-            profile:profiles(id, full_name, company_name, phone),
+            profile:profiles(id, full_name, company_name, phone, bio, email),
             category:sub_categories(
               name,
               main_category:main_categories(name)
@@ -380,7 +382,18 @@ export function ServiceDetails() {
                 </h2>
               </div>
 
-              <p className="text-muted-foreground text-sm">
+              {service.profile.bio && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {service.profile.bio}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 text-muted-foreground mt-4">
+                <Mail className="h-4 w-4 shrink-0" />
+                <span className="text-sm">{service.profile.email}</span>
+              </div>
+
+              <p className="text-muted-foreground text-sm mt-2">
                 {formatPhoneNumber(service.profile.phone)}
               </p>
 
