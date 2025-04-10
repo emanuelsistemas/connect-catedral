@@ -80,6 +80,13 @@ export function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Effect to show development notice when payments section is selected
+  useEffect(() => {
+    if (activeSection === 'payments') {
+      toast.info('Área em desenvolvimento. Em breve você poderá gerenciar seus pagamentos aqui!');
+    }
+  }, [activeSection]);
+
   async function loadData() {
     if (!user) return;
 
@@ -198,6 +205,22 @@ export function Profile() {
 
       setSaving(true);
 
+      // Primeiro, verificar a senha atual
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: currentPassword
+      });
+
+      if (signInError) {
+        if (signInError.message.includes('Invalid login credentials')) {
+          toast.error('A senha atual está incorreta');
+        } else {
+          toast.error('Erro ao verificar senha atual');
+        }
+        return;
+      }
+
+      // Se a senha atual estiver correta, atualizar para a nova senha
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -208,9 +231,13 @@ export function Profile() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating password:', error);
-      toast.error('Erro ao atualizar senha');
+      if (error.message?.includes('Invalid login credentials')) {
+        toast.error('A senha atual está incorreta');
+      } else {
+        toast.error('Erro ao atualizar senha');
+      }
     } finally {
       setSaving(false);
     }
