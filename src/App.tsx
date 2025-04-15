@@ -106,7 +106,7 @@ function App() {
                 <p className="text-sm text-muted-foreground">
                   Desenvolvido por{' '}
                   <a
-                    href="https://emasoftware.io"
+                    href="https://emasoftware.app"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-museomoderno font-medium bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent hover:to-primary transition-all duration-300"
