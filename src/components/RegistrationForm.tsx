@@ -80,40 +80,68 @@ export function RegistrationForm() {
 
   // Função para validar CNPJ
   function isValidCNPJ(cnpj: string): boolean {
+    // Remove caracteres não numéricos
     cnpj = cnpj.replace(/[^\d]/g, '');
     
+    // Verifica se tem 14 dígitos
     if (cnpj.length !== 14) return false;
     
     // Verifica se todos os dígitos são iguais
     if (/^(\d)\1+$/.test(cnpj)) return false;
     
     // Validação dos dígitos verificadores
-    let tamanho = cnpj.length - 2;
-    let numeros = cnpj.substring(0, tamanho);
-    const digitos = cnpj.substring(tamanho);
     let soma = 0;
-    let pos = tamanho - 7;
+    let peso = 2;
     
-    for (let i = tamanho; i >= 1; i--) {
-      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
-      if (pos < 2) pos = 9;
+    // Primeiro dígito verificador
+    for (let i = 11; i >= 0; i--) {
+      soma += parseInt(cnpj.charAt(i)) * peso;
+      peso = peso === 9 ? 2 : peso + 1;
     }
     
-    let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-    if (resultado !== parseInt(digitos.charAt(0))) return false;
+    let digito = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+    if (parseInt(cnpj.charAt(12)) !== digito) return false;
     
-    tamanho = tamanho + 1;
-    numeros = cnpj.substring(0, tamanho);
+    // Segundo dígito verificador
     soma = 0;
-    pos = tamanho - 7;
+    peso = 2;
     
-    for (let i = tamanho; i >= 1; i--) {
-      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
-      if (pos < 2) pos = 9;
+    for (let i = 12; i >= 0; i--) {
+      soma += parseInt(cnpj.charAt(i)) * peso;
+      peso = peso === 9 ? 2 : peso + 1;
     }
     
-    resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
-    if (resultado !== parseInt(digitos.charAt(1))) return false;
+    digito = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+    if (parseInt(cnpj.charAt(13)) !== digito) return false;
+    
+    return true;
+  }
+
+  // Função para validar CPF
+  function isValidCPF(cpf: string): boolean {
+    cpf = cpf.replace(/[^\d]/g, '');
+    
+    if (cpf.length !== 11) return false;
+    
+    if (/^(\d)\1+$/.test(cpf)) return false;
+    
+    let soma = 0;
+    for (let i = 0; i < 9; i++) {
+      soma += parseInt(cpf.charAt(i)) * (10 - i);
+    }
+    
+    let digito = 11 - (soma % 11);
+    if (digito === 10 || digito === 11) digito = 0;
+    if (digito !== parseInt(cpf.charAt(9))) return false;
+    
+    soma = 0;
+    for (let i = 0; i < 10; i++) {
+      soma += parseInt(cpf.charAt(i)) * (11 - i);
+    }
+    
+    digito = 11 - (soma % 11);
+    if (digito === 10 || digito === 11) digito = 0;
+    if (digito !== parseInt(cpf.charAt(10))) return false;
     
     return true;
   }
@@ -173,20 +201,46 @@ export function RegistrationForm() {
     }
   }
 
+  // Add this function to handle document type change
+  function handleDocumentTypeChange(type: 'cpf' | 'cnpj') {
+    setDocumentType(type);
+    setDocument(''); // Clear document field
+    setError(null); // Clear any previous errors
+    
+    // If switching from CNPJ to CPF, also clear company related fields
+    if (type === 'cpf') {
+      setCompanyName('');
+      setTradingName('');
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      // Validar campos obrigatórios
+      // Validar campos obrigatórios básicos
       if (!document || !email || !whatsapp || !segment) {
         throw new Error('Preencha todos os campos obrigatórios');
       }
 
-      // Validar CNPJ se for o tipo selecionado
-      if (documentType === 'cnpj' && !isValidCNPJ(document)) {
-        throw new Error('CNPJ inválido');
+      const documentoLimpo = document.replace(/[^\d]/g, '');
+
+      // Validação específica por tipo de documento
+      if (documentType === 'cnpj') {
+        if (!isValidCNPJ(documentoLimpo)) {
+          throw new Error('CNPJ inválido');
+        }
+        // Para CNPJ, razão social é obrigatória
+        if (!companyName) {
+          throw new Error('Razão Social é obrigatória para CNPJ');
+        }
+      } else {
+        // Validação de CPF
+        if (!isValidCPF(documentoLimpo)) {
+          throw new Error('CPF inválido');
+        }
       }
 
       // Salvar no banco
@@ -194,9 +248,9 @@ export function RegistrationForm() {
         .from('registrations')
         .insert({
           document_type: documentType,
-          document: document.replace(/\D/g, ''),
-          company_name: companyName,
-          trading_name: tradingName,
+          document: documentoLimpo,
+          company_name: documentType === 'cnpj' ? companyName : null,
+          trading_name: documentType === 'cnpj' ? tradingName : null,
           email,
           whatsapp: whatsapp.replace(/\D/g, ''),
           segment
@@ -309,7 +363,7 @@ export function RegistrationForm() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setDocumentType('cnpj')}
+                    onClick={() => handleDocumentTypeChange('cnpj')}
                     className={cn(
                       "px-4 py-3 rounded-lg border text-center transition-colors",
                       documentType === 'cnpj'
@@ -321,7 +375,7 @@ export function RegistrationForm() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDocumentType('cpf')}
+                    onClick={() => handleDocumentTypeChange('cpf')}
                     className={cn(
                       "px-4 py-3 rounded-lg border text-center transition-colors",
                       documentType === 'cpf'
@@ -384,22 +438,25 @@ export function RegistrationForm() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required={documentType === 'cnpj'}
                   />
                 </div>
               )}
 
               {/* Trading Name */}
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Nome Fantasia
-                </label>
-                <input
-                  type="text"
-                  value={tradingName}
-                  onChange={(e) => setTradingName(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+              {documentType === 'cnpj' && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Nome Fantasia
+                  </label>
+                  <input
+                    type="text"
+                    value={tradingName}
+                    onChange={(e) => setTradingName(e.target.value)}
+                    className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              )}
 
               {/* Email */}
               <div>
@@ -412,6 +469,7 @@ export function RegistrationForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="seu@email.com"
+                  required
                 />
               </div>
 
@@ -428,6 +486,7 @@ export function RegistrationForm() {
                   placeholder="(00) 0 0000-0000"
                   inputMode="numeric"
                   pattern="[0-9]*"
+                  required
                 />
               </div>
             </div>
