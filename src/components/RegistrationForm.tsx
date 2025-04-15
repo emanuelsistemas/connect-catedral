@@ -1,6 +1,10 @@
 import { useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, ChevronDown } from 'lucide-react';
 import InputMask from 'react-input-mask';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import Swal from 'sweetalert2';
+import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 
 const BUSINESS_SEGMENTS = [
@@ -45,6 +49,7 @@ const BUSINESS_SEGMENTS = [
 ];
 
 export function RegistrationForm() {
+  const navigate = useNavigate();
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cnpj');
   const [document, setDocument] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -60,6 +65,18 @@ export function RegistrationForm() {
   const filteredSegments = BUSINESS_SEGMENTS.filter(s => 
     s.toLowerCase().includes(segmentSearch.toLowerCase())
   );
+
+  function resetForm() {
+    setDocumentType('cnpj');
+    setDocument('');
+    setCompanyName('');
+    setTradingName('');
+    setEmail('');
+    setWhatsapp('');
+    setSegment('');
+    setSegmentSearch('');
+    setError(null);
+  }
 
   // Função para validar CNPJ
   function isValidCNPJ(cnpj: string): boolean {
@@ -156,18 +173,58 @@ export function RegistrationForm() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Handle form submission
-    console.log({
-      documentType,
-      document,
-      companyName,
-      tradingName,
-      email,
-      whatsapp,
-      segment
-    });
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Validar campos obrigatórios
+      if (!document || !email || !whatsapp || !segment) {
+        throw new Error('Preencha todos os campos obrigatórios');
+      }
+
+      // Validar CNPJ se for o tipo selecionado
+      if (documentType === 'cnpj' && !isValidCNPJ(document)) {
+        throw new Error('CNPJ inválido');
+      }
+
+      // Salvar no banco
+      const { error: dbError } = await supabase
+        .from('registrations')
+        .insert({
+          document_type: documentType,
+          document: document.replace(/\D/g, ''),
+          company_name: companyName,
+          trading_name: tradingName,
+          email,
+          whatsapp: whatsapp.replace(/\D/g, ''),
+          segment
+        });
+
+      if (dbError) throw dbError;
+
+      // Mostrar confirmação
+      const result = await Swal.fire({
+        title: 'Cadastro realizado!',
+        text: 'Seu cadastro foi realizado com sucesso.',
+        icon: 'success',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#2563eb'
+      });
+
+      // Limpar formulário e redirecionar
+      if (result.isConfirmed) {
+        resetForm();
+        navigate('/');
+      }
+    } catch (err: any) {
+      console.error('Erro ao cadastrar:', err);
+      setError(err.message || 'Erro ao realizar cadastro');
+      toast.error(err.message || 'Erro ao realizar cadastro');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -186,14 +243,23 @@ export function RegistrationForm() {
                 <button
                   type="button"
                   onClick={() => setIsSegmentOpen(!isSegmentOpen)}
-                  className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-left"
+                  className={cn(
+                    "w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-left flex items-center justify-between",
+                    isSegmentOpen && "border-primary ring-2 ring-primary"
+                  )}
                 >
-                  {segment || 'Selecione um segmento'}
+                  <span className={segment ? "text-foreground" : "text-muted-foreground"}>
+                    {segment || 'Selecione um segmento'}
+                  </span>
+                  <ChevronDown className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    isSegmentOpen && "transform rotate-180"
+                  )} />
                 </button>
                 
                 {isSegmentOpen && (
                   <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-lg shadow-lg">
-                    <div className="p-2">
+                    <div className="p-2 border-b border-border">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
@@ -206,7 +272,7 @@ export function RegistrationForm() {
                       </div>
                     </div>
                     
-                    <div className="max-h-60 overflow-auto">
+                    <div className="max-h-60 overflow-auto py-1">
                       {filteredSegments.length === 0 ? (
                         <div className="px-4 py-2 text-sm text-muted-foreground">
                           Nenhum resultado encontrado
@@ -222,8 +288,8 @@ export function RegistrationForm() {
                               setSegmentSearch('');
                             }}
                             className={cn(
-                              "w-full px-4 py-2 text-left hover:bg-secondary transition-colors",
-                              segment === s && "bg-primary/10"
+                              "w-full px-4 py-2 text-left hover:bg-accent transition-colors text-sm",
+                              segment === s && "bg-primary/10 text-primary"
                             )}
                           >
                             {s}
@@ -283,18 +349,20 @@ export function RegistrationForm() {
                     inputMode="numeric"
                     pattern="[0-9]*"
                   />
-                  <button
-                    type="button"
-                    onClick={() => documentType === 'cnpj' && consultarCNPJ(document)}
-                    disabled={isLoading || !document || documentType !== 'cnpj'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Search className="h-5 w-5" />
-                    )}
-                  </button>
+                  {documentType === 'cnpj' && (
+                    <button
+                      type="button"
+                      onClick={() => consultarCNPJ(document)}
+                      disabled={isLoading || !document}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Search className="h-5 w-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -366,9 +434,10 @@ export function RegistrationForm() {
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              disabled={isLoading}
+              className="w-full py-3 px-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cadastrar
+              {isLoading ? 'Cadastrando...' : 'Cadastrar'}
             </button>
           </form>
         </div>
