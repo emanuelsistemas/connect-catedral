@@ -1,28 +1,48 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 import InputMask from 'react-input-mask';
 import { cn } from '../lib/utils';
 
 const BUSINESS_SEGMENTS = [
+  'Açougue',
+  'Agronegócio',
+  'Alimentação',
   'Atacado',
-  'Varejo',
-  'Prestação de Serviços',
-  'Indústria',
+  'Automotivo',
+  'Cabeleireiro e Barbearia',
   'Comércio',
   'Construção Civil',
-  'Transportes',
   'Educação',
-  'Saúde',
-  'Tecnologia',
-  'Alimentação',
-  'Turismo',
-  'Agronegócio',
-  'Automotivo',
+  'Energia',
+  'Estética e Beleza',
+  'Farmácia',
   'Financeiro',
   'Imobiliário',
-  'Energia',
-  'Telecomunicações'
-].sort();
+  'Indústria',
+  'Loja de Calçados',
+  'Loja de Eletrônicos',
+  'Loja de Materiais de Construção',
+  'Loja de Roupas',
+  'Manicure e Pedicure',
+  'Mercearia',
+  'Oficina Mecânica',
+  'Padaria e Confeitaria',
+  'Papelaria',
+  'Pet Shop',
+  'Prestação de Serviços',
+  'Saúde',
+  'Serviços Contábeis',
+  'Serviços de Consultoria',
+  'Serviços de Limpeza',
+  'Serviços de Manutenção Veicular',
+  'Serviços Jurídicos',
+  'Tecnologia',
+  'Telecomunicações',
+  'Transportes',
+  'Troca de Pneus',
+  'Turismo',
+  'Varejo'
+];
 
 export function RegistrationForm() {
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cnpj');
@@ -34,10 +54,107 @@ export function RegistrationForm() {
   const [segment, setSegment] = useState('');
   const [isSegmentOpen, setIsSegmentOpen] = useState(false);
   const [segmentSearch, setSegmentSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredSegments = BUSINESS_SEGMENTS.filter(s => 
     s.toLowerCase().includes(segmentSearch.toLowerCase())
   );
+
+  // Função para validar CNPJ
+  function isValidCNPJ(cnpj: string): boolean {
+    cnpj = cnpj.replace(/[^\d]/g, '');
+    
+    if (cnpj.length !== 14) return false;
+    
+    // Verifica se todos os dígitos são iguais
+    if (/^(\d)\1+$/.test(cnpj)) return false;
+    
+    // Validação dos dígitos verificadores
+    let tamanho = cnpj.length - 2;
+    let numeros = cnpj.substring(0, tamanho);
+    const digitos = cnpj.substring(tamanho);
+    let soma = 0;
+    let pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+    if (resultado !== parseInt(digitos.charAt(0))) return false;
+    
+    tamanho = tamanho + 1;
+    numeros = cnpj.substring(0, tamanho);
+    soma = 0;
+    pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+    if (resultado !== parseInt(digitos.charAt(1))) return false;
+    
+    return true;
+  }
+
+  // Função para consultar CNPJ na BrasilAPI
+  async function consultarCNPJ(cnpj: string) {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const cnpjLimpo = cnpj.replace(/[^\d]/g, '');
+      
+      if (!isValidCNPJ(cnpjLimpo)) {
+        setError('CNPJ inválido. Verifique os números digitados.');
+        setIsLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError('CNPJ não encontrado na base de dados.');
+        } else {
+          setError('Erro ao consultar CNPJ. Tente novamente mais tarde.');
+        }
+        setIsLoading(false);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Preencher os campos do formulário com os dados retornados
+      setCompanyName(data.razao_social || '');
+      setTradingName(data.nome_fantasia || '');
+      setEmail(data.email || '');
+      
+      // Tentar identificar o segmento com base no CNAE principal
+      if (data.cnae_fiscal_descricao) {
+        const descricaoCnae = data.cnae_fiscal_descricao.toLowerCase();
+        
+        // Mapear descrição CNAE para segmentos do formulário
+        const segmentoEncontrado = BUSINESS_SEGMENTS.find(seg =>
+          descricaoCnae.includes(seg.toLowerCase())
+        );
+        
+        if (segmentoEncontrado) {
+          setSegment(segmentoEncontrado);
+        }
+      }
+      
+    } catch (err) {
+      console.error('Erro ao consultar CNPJ:', err);
+      setError('Erro ao processar a consulta. Verifique sua conexão e tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,8 +171,8 @@ export function RegistrationForm() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex-1 container py-8">
+    <div className="min-h-screen bg-background flex flex-col justify-between">
+      <div className="container py-8">
         <div className="max-w-md mx-auto">
           <h1 className="text-2xl font-bold text-center mb-8">Cadastro</h1>
           
@@ -163,15 +280,30 @@ export function RegistrationForm() {
                     onChange={(e) => setDocument(e.target.value)}
                     className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-12"
                     placeholder={documentType === 'cnpj' ? '00.000.000/0000-00' : '000.000.000-00'}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => documentType === 'cnpj' && consultarCNPJ(document)}
+                    disabled={isLoading || !document || documentType !== 'cnpj'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Search className="h-5 w-5" />
+                    {isLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Search className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
+
+              {/* Error message */}
+              {error && (
+                <div className="px-4 py-3 bg-destructive/10 border border-destructive rounded-lg">
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              )}
 
               {/* Company Name (only for CNPJ) */}
               {documentType === 'cnpj' && (
@@ -226,6 +358,8 @@ export function RegistrationForm() {
                   onChange={(e) => setWhatsapp(e.target.value)}
                   className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="(00) 0 0000-0000"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
               </div>
             </div>
@@ -240,7 +374,7 @@ export function RegistrationForm() {
         </div>
       </div>
 
-      <footer className="py-4 border-t border-border">
+      <footer className="py-3 mt-4 border-t border-border">
         <div className="container flex items-center justify-center">
           <p className="text-sm text-muted-foreground">
             Desenvolvido por{' '}
