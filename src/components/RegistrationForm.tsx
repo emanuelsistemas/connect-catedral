@@ -401,7 +401,6 @@ export function RegistrationForm() {
                     className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary pr-12"
                     placeholder={documentType === 'cnpj' ? '00.000.000/0000-00' : '000.000.000-00'}
                     inputMode="numeric"
-                    pattern="[0-9]*"
                   />
                   {documentType === 'cnpj' && (
                     <button
@@ -485,7 +484,6 @@ export function RegistrationForm() {
                   className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="(00) 0 0000-0000"
                   inputMode="numeric"
-                  pattern="[0-9]*"
                   required
                 />
               </div>
