@@ -48,6 +48,11 @@ const BUSINESS_SEGMENTS = [
   'Varejo'
 ];
 
+// Componente para exibir marcação de campo obrigatório
+function RequiredMark() {
+  return <span className="text-destructive ml-1">*</span>;
+}
+
 export function RegistrationForm() {
   const navigate = useNavigate();
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>('cnpj');
@@ -207,10 +212,10 @@ export function RegistrationForm() {
     setDocument(''); // Clear document field
     setError(null); // Clear any previous errors
     
-    // If switching from CNPJ to CPF, also clear company related fields
+    // If switching from CNPJ to CPF, only clear company related fields
     if (type === 'cpf') {
       setCompanyName('');
-      setTradingName('');
+      // Não limpar o Nome Fantasia para CPF, pois ele será obrigatório
     }
   }
 
@@ -220,9 +225,25 @@ export function RegistrationForm() {
     setError(null);
 
     try {
-      // Validar campos obrigatórios básicos
-      if (!document || !email || !whatsapp || !segment) {
-        throw new Error('Preencha todos os campos obrigatórios');
+      // Validar campos obrigatórios individualmente
+      if (!document) {
+        throw new Error(`O campo ${documentType.toUpperCase()} é obrigatório`);
+      }
+      
+      if (!segment) {
+        throw new Error('O campo Segmento é obrigatório');
+      }
+      
+      if (!email) {
+        throw new Error('O campo E-mail é obrigatório');
+      }
+      
+      if (!whatsapp) {
+        throw new Error('O campo WhatsApp é obrigatório');
+      }
+      
+      if (!tradingName) {
+        throw new Error('O campo Nome Fantasia é obrigatório');
       }
 
       const documentoLimpo = document.replace(/[^\d]/g, '');
@@ -250,7 +271,7 @@ export function RegistrationForm() {
           document_type: documentType,
           document: documentoLimpo,
           company_name: documentType === 'cnpj' ? companyName : null,
-          trading_name: documentType === 'cnpj' ? tradingName : null,
+          trading_name: tradingName, // Salvar Nome Fantasia para ambos os tipos
           email,
           whatsapp: whatsapp.replace(/\D/g, ''),
           segment
@@ -292,7 +313,7 @@ export function RegistrationForm() {
               {/* Segment Selection */}
               <div className="relative">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Segmento
+                  Segmento<RequiredMark />
                 </label>
                 <button
                   type="button"
@@ -391,7 +412,7 @@ export function RegistrationForm() {
               {/* Document Number */}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  {documentType.toUpperCase()}
+                  {documentType.toUpperCase()}<RequiredMark />
                 </label>
                 <div className="relative">
                   <InputMask
@@ -430,7 +451,7 @@ export function RegistrationForm() {
               {documentType === 'cnpj' && (
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Razão Social
+                    Razão Social<RequiredMark />
                   </label>
                   <input
                     type="text"
@@ -442,25 +463,24 @@ export function RegistrationForm() {
                 </div>
               )}
 
-              {/* Trading Name */}
-              {documentType === 'cnpj' && (
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Nome Fantasia
-                  </label>
-                  <input
-                    type="text"
-                    value={tradingName}
-                    onChange={(e) => setTradingName(e.target.value)}
-                    className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
+              {/* Trading Name - mostrado tanto para CPF quanto para CNPJ */}
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Nome Fantasia<RequiredMark />
+                </label>
+                <input
+                  type="text"
+                  value={tradingName}
+                  onChange={(e) => setTradingName(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
 
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  E-mail
+                  E-mail<RequiredMark />
                 </label>
                 <input
                   type="email"
@@ -475,7 +495,7 @@ export function RegistrationForm() {
               {/* WhatsApp */}
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  WhatsApp
+                  WhatsApp<RequiredMark />
                 </label>
                 <InputMask
                   mask="(99) 9 9999-9999"
