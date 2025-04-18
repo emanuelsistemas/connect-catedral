@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Search, Loader2, ChevronDown } from 'lucide-react';
-import InputMask from 'react-input-mask';
 import { useNavigate } from 'react-router-dom';
+import { Search, Filter, Loader2, ChevronDown } from 'lucide-react';
+import InputMask from 'react-input-mask';
 import { toast } from 'react-toastify';
 import Swal from 'sweetalert2';
 import { supabase } from '../lib/supabase';
@@ -206,16 +206,13 @@ export function RegistrationForm() {
     }
   }
 
-  // Add this function to handle document type change
   function handleDocumentTypeChange(type: 'cpf' | 'cnpj') {
     setDocumentType(type);
-    setDocument(''); // Clear document field
-    setError(null); // Clear any previous errors
+    setDocument('');
+    setError(null);
     
-    // If switching from CNPJ to CPF, only clear company related fields
     if (type === 'cpf') {
       setCompanyName('');
-      // Não limpar o Nome Fantasia para CPF, pois ele será obrigatório
     }
   }
 
@@ -271,7 +268,7 @@ export function RegistrationForm() {
           document_type: documentType,
           document: documentoLimpo,
           company_name: documentType === 'cnpj' ? companyName : null,
-          trading_name: tradingName, // Salvar Nome Fantasia para ambos os tipos
+          trading_name: tradingName,
           email,
           whatsapp: whatsapp.replace(/\D/g, ''),
           segment
@@ -519,22 +516,6 @@ export function RegistrationForm() {
           </form>
         </div>
       </div>
-
-      <footer className="py-3 mt-4 border-t border-border">
-        <div className="container flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">
-            Desenvolvido por{' '}
-            <a
-              href="https://emasoftware.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-museomoderno font-medium bg-gradient-to-r from-primary to-primary/50 bg-clip-text text-transparent hover:to-primary transition-all duration-300"
-            >
-              ema-software
-            </a>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

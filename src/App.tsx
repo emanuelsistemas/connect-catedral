@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { Home } from './pages/Home';
 import { ServiceDetails } from './pages/ServiceDetails';
 import { ServiceRatings } from './pages/ServiceRatings';
@@ -16,7 +17,7 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground flex flex-col">
+          <div className="min-h-screen bg-background text-foreground flex flex-col pb-14">
             <Header />
             <main className="flex-1">
               <Routes>
@@ -31,6 +32,7 @@ function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
+            <Footer />
           </div>
         </BrowserRouter>
       </ThemeProvider>
