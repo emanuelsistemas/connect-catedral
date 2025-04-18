@@ -17,7 +17,7 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground flex flex-col pb-14">
+          <div className="min-h-screen bg-background text-foreground flex flex-col pb-10">
             <Header />
             <main className="flex-1">
               <Routes>
