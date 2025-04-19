@@ -24,12 +24,7 @@ type Service = {
     company_name: string | null;
     phone: string;
   };
-  category: {
-    name: string;
-    main_category: {
-      name: string;
-    };
-  };
+  category: CategoryWithMainCategory;
   service_images: {
     url: string;
     is_featured: boolean;
@@ -66,6 +61,15 @@ type SubCategory = {
   id: string;
   name: string;
   main_category_id: string;
+};
+
+type CategoryWithMainCategory = {
+  id: string;
+  name: string;
+  main_category: {
+    id: string;
+    name: string;
+  };
 };
 
 type Department = {
@@ -137,7 +141,7 @@ export function Home() {
       // Calcular ranking para cada serviço
       const servicesWithRanking = servicesResponse.data.map(service => {
         const ratings = service.ratings || [];
-        const positiveRatings = ratings.filter(r => r.rating === true).length;
+        const positiveRatings = ratings.filter((r: { rating: boolean }) => r.rating === true).length;
         const totalRatings = ratings.length;
 
         // Normalizar métricas (0-1)
@@ -218,6 +222,77 @@ export function Home() {
       const message = `Olá! Vi sua vaga de ${job.title} no c:onnect e gostaria de enviar meu currículo.`;
       window.open(
         `https://wa.me/${job.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
+        '_blank'
+      );
+    } catch (error) {
+      console.error('Error updating whatsapp clicks:', error);
+    }
+  }
+
+  async function handleServiceWhatsAppClick(service: Service, e: React.MouseEvent) {
+    e.preventDefault();
+    if (!service.whatsapp) return;
+
+    try {
+      // Obter IP do cliente
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const { ip } = await ipResponse.json();
+
+      // Verificar se já existe um clique recente deste IP
+      const { data: recentClick } = await supabase
+        .from('whatsapp_clicks')
+        .select('*')
+        .eq('service_id', service.id)
+        .eq('ip_address', ip)
+        .gte('clicked_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Últimas 24h
+        .maybeSingle();
+
+      if (!recentClick) {
+        // Registrar novo clique
+        await supabase.from('whatsapp_clicks').insert({
+          service_id: service.id,
+          ip_address: ip,
+          user_agent: navigator.userAgent,
+          clicked_at: new Date().toISOString()
+        });
+
+        // Incrementar contador de cliques
+        await supabase
+          .from('services')
+          .update({ whatsapp_clicks: (service.whatsapp_clicks || 0) + 1 })
+          .eq('id', service.id);
+          
+        // Criar notificação para o prestador de serviço
+        try {
+          // Formatando os dados corretamente
+          const notificationData = JSON.stringify({
+            service_id: service.id,
+            type: 'whatsapp_click'
+          });
+          
+          // Inserir notificação
+          const { error } = await supabase.from('notifications').insert({
+            user_id: service.profile.id,
+            title: 'Novo contato via WhatsApp',
+            message: `Alguém entrou em contato com você sobre seu serviço "${service.title}"`,
+            read: false,
+            data: notificationData
+          });
+          
+          if (error) {
+            console.error('Erro ao criar notificação de WhatsApp na home:', error);
+          } else {
+            console.log('Notificação de WhatsApp criada com sucesso na home');
+          }
+        } catch (notificationError) {
+          console.error('Exceção ao criar notificação de WhatsApp na home:', notificationError);
+        }
+      }
+
+      // Abrir WhatsApp
+      const message = `Olá! Vi seu serviço de ${service.title} no c:onnect e gostaria de mais informações.`;
+      window.open(
+        `https://wa.me/${service.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
         '_blank'
       );
     } catch (error) {
@@ -455,13 +530,7 @@ export function Home() {
 
                     {service.whatsapp && (
                       <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          window.open(
-                            `https://wa.me/${service.whatsapp.replace(/\D/g, '')}`,
-                            '_blank'
-                          );
-                        }}
+                        onClick={(e) => handleServiceWhatsAppClick(service, e)}
                         className="flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg hover:opacity-90 transition-opacity text-sm"
                       >
                         <MessageSquare className="h-4 w-4" />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Trash2 } from 'lucide-react';
+import { Bell, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -11,7 +11,25 @@ interface Notification {
   message: string;
   read: boolean;
   created_at: string;
-  data: any;
+  user_id: string;
+  data: string | {
+    service_id?: string;
+    type?: string;
+    [key: string]: any;
+  };
+}
+
+// Função auxiliar para processar o campo data
+function parseNotificationData(data: any) {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Erro ao parsear dados da notificação:', error);
+      return {};
+    }
+  }
+  return data || {};
 }
 
 export function NotificationBell() {
@@ -19,6 +37,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +56,17 @@ export function NotificationBell() {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            setNotifications(prev => [payload.new as Notification, ...prev]);
+            console.log('Nova notificação recebida via realtime:', payload.new);
+            const newNotification = payload.new as Notification;
+            const parsedData = parseNotificationData(newNotification.data);
+            
+            if (parsedData.type === 'whatsapp_click') {
+              console.log('Notificação de clique no WhatsApp detectada!');
+            }
+            
+            setNotifications(prev => [newNotification, ...prev]);
+            toast.info(`Nova notificação: ${newNotification.title}`);
+            toast.success('Alguém interagiu com seu serviço!');
           }
         )
         .subscribe();
@@ -61,20 +90,38 @@ export function NotificationBell() {
 
   async function loadNotifications() {
     try {
-      const { data } = await supabase
+      setIsRefreshing(true);
+      console.log('Carregando notificações para o usuário:', user?.id);
+      
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
-      if (data) {
+      if (error) {
+        console.error('Erro ao carregar notificações:', error);
+      } else if (data) {
+        console.log('Notificações carregadas:', data);
+        
+        // Processar cada notificação para garantir que o campo data seja tratado corretamente
+        const processedNotifications = data.map(notification => ({
+          ...notification,
+          parsedData: parseNotificationData(notification.data)
+        }));
+        
+        // Logar notificações de WhatsApp especificamente
+        const whatsappNotifications = processedNotifications.filter(n => n.parsedData && n.parsedData.type === 'whatsapp_click');
+        console.log('Notificações de WhatsApp encontradas:', whatsappNotifications);
+        
         setNotifications(data);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }
 
@@ -144,17 +191,32 @@ export function NotificationBell() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className="p-2 hover:bg-secondary rounded-lg transition-colors relative"
-      >
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-5 h-5 flex items-center justify-center rounded-full">
-            {unreadCount}
-          </span>
-        )}
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="p-2 hover:bg-secondary rounded-lg transition-colors relative"
+        >
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-5 h-5 flex items-center justify-center rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+        
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            loadNotifications();
+            toast.info('Verificando novas notificações...');
+          }}
+          className="p-2 hover:bg-secondary rounded-lg transition-colors"
+          disabled={isRefreshing}
+          title="Atualizar notificações"
+        >
+          <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
 
       {showDropdown && (
         <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-lg z-50">

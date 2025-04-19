@@ -188,6 +188,32 @@ export function ServiceDetails() {
         if (updatedService) {
           setService(updatedService);
         }
+
+        // Criar notificação para o prestador de serviço
+        try {
+          // Formatando os dados corretamente
+          const notificationData = JSON.stringify({
+            service_id: service.id,
+            type: 'whatsapp_click'
+          });
+          
+          // Inserir notificação
+          const { error } = await supabase.from('notifications').insert({
+            user_id: service.profile.id,
+            title: 'Novo contato via WhatsApp',
+            message: `Alguém entrou em contato com você sobre seu serviço "${service.title}"`,
+            read: false,
+            data: notificationData
+          });
+          
+          if (error) {
+            console.error('Erro ao criar notificação de WhatsApp:', error);
+          } else {
+            console.log('Notificação de WhatsApp criada com sucesso');
+          }
+        } catch (notificationError) {
+          console.error('Exceção ao criar notificação de WhatsApp:', notificationError);
+        }
       }
 
       // Abrir WhatsApp

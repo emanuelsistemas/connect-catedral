@@ -4,6 +4,7 @@ import { Eye, MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-toastify';
 import { cn } from '../lib/utils';
 
 interface DashboardData {
@@ -15,6 +16,10 @@ interface DashboardData {
   viewsData: {
     date: string;
     views: number;
+  }[];
+  clicksData: {
+    date: string;
+    clicks: number;
   }[];
 }
 
@@ -56,7 +61,7 @@ export function Dashboard() {
       // Get all services for this user
       const { data: services } = await supabase
         .from('services')
-        .select('id, views_count, whatsapp_clicks')
+        .select('id')
         .eq('profile_id', user.id);
 
       if (!services?.length) {
@@ -66,32 +71,39 @@ export function Dashboard() {
           totalRatings: 0,
           positiveRatings: 0,
           negativeRatings: 0,
-          viewsData: []
+          viewsData: [],
+          clicksData: []
         });
         return;
       }
-
-      // Calculate totals from all services
-      const totalViews = services.reduce((sum, service) => sum + (service.views_count || 0), 0);
-      const totalClicks = services.reduce((sum, service) => sum + (service.whatsapp_clicks || 0), 0);
-
-      // Get all ratings for user's services
-      const { data: ratings } = await supabase
-        .from('service_ratings')
-        .select('rating')
-        .in('service_id', services.map(s => s.id));
-
-      // Calculate ratings
-      const totalRatings = ratings?.length || 0;
-      const positiveRatings = ratings?.filter(r => r.rating === true).length || 0;
-      const negativeRatings = ratings?.filter(r => r.rating === false).length || 0;
-
-      // Get views data for chart
+      
+      // Get views data for the selected time period
       const { data: views } = await supabase
         .from('service_views')
         .select('viewed_at')
         .in('service_id', services.map(s => s.id))
         .gte('viewed_at', startDate.toISOString());
+
+      // Get whatsapp clicks data for the selected time period
+      const { data: clicks } = await supabase
+        .from('whatsapp_clicks')
+        .select('clicked_at')
+        .in('service_id', services.map(s => s.id))
+        .gte('clicked_at', startDate.toISOString());
+
+      // Get ratings for the selected time period
+      const { data: ratings } = await supabase
+        .from('service_ratings')
+        .select('rating, created_at')
+        .in('service_id', services.map(s => s.id))
+        .gte('created_at', startDate.toISOString());
+
+      // Calculate totals for the selected period
+      const totalViews = views?.length || 0;
+      const totalClicks = clicks?.length || 0;
+      const totalRatings = ratings?.length || 0;
+      const positiveRatings = ratings?.filter(r => r.rating === true).length || 0;
+      const negativeRatings = ratings?.filter(r => r.rating === false).length || 0;
 
       // Process views data for chart
       const viewsByDate = new Map<string, number>();
@@ -100,9 +112,42 @@ export function Dashboard() {
         viewsByDate.set(date, (viewsByDate.get(date) || 0) + 1);
       });
 
-      const viewsData = Array.from(viewsByDate.entries()).map(([date, views]) => ({
+      // Process clicks data for chart
+      const clicksByDate = new Map<string, number>();
+      clicks?.forEach(click => {
+        const date = new Date(click.clicked_at).toLocaleDateString('pt-BR');
+        clicksByDate.set(date, (clicksByDate.get(date) || 0) + 1);
+      });
+      
+      // Adicionar datas faltantes com valor zero para melhorar a visualização do gráfico
+      const fillMissingDates = (dateMap: Map<string, number>, startDate: Date, endDate: Date = new Date()) => {
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateStr = currentDate.toLocaleDateString('pt-BR');
+          if (!dateMap.has(dateStr)) {
+            dateMap.set(dateStr, 0);
+          }
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        return new Map([...dateMap.entries()].sort((a, b) => {
+          const dateA = a[0].split('/').reverse().join('-');
+          const dateB = b[0].split('/').reverse().join('-');
+          return dateA.localeCompare(dateB);
+        }));
+      };
+      
+      // Preencher datas faltantes e ordenar
+      const filledViewsByDate = fillMissingDates(viewsByDate, startDate);
+      const filledClicksByDate = fillMissingDates(clicksByDate, startDate);
+
+      const viewsData = Array.from(filledViewsByDate.entries()).map(([date, views]) => ({
         date,
         views
+      }));
+
+      const clicksData = Array.from(filledClicksByDate.entries()).map(([date, clicks]) => ({
+        date,
+        clicks
       }));
 
       setData({
@@ -111,7 +156,8 @@ export function Dashboard() {
         totalRatings,
         positiveRatings,
         negativeRatings,
-        viewsData
+        viewsData,
+        clicksData
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -228,18 +274,39 @@ export function Dashboard() {
         </button>
       </div>
 
-      <div className="bg-card rounded-lg border border-border p-4">
-        <h3 className="text-lg font-semibold mb-4">Visualizações por Dia</h3>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.viewsData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="views" fill="hsl(var(--primary))" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-card rounded-lg border border-border p-4">
+          <h3 className="text-lg font-semibold mb-4">
+            Visualizações por {timeRange === 'week' ? '7 dias' : timeRange === 'month' ? '30 dias' : '12 meses'}
+          </h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.viewsData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="views" fill="hsl(var(--primary))" name="Visualizações" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-lg border border-border p-4">
+          <h3 className="text-lg font-semibold mb-4">
+            Cliques WhatsApp por {timeRange === 'week' ? '7 dias' : timeRange === 'month' ? '30 dias' : '12 meses'}
+          </h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.clicksData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="clicks" fill="#25D366" name="Cliques WhatsApp" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
